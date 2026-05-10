@@ -34,15 +34,27 @@ function Write-Status {
     $icon = "✅ "
     $color = "Green"
   }
-  elseif ($Message -match 'failure|error|FAILED|⭕') { 
-    $icon = "❌ "
-    $color = "Red"
+  elseif ($Message -match '\berror\b|\bfailure\b|\bFAILED\b|⭕') { 
+    if ($Message -match 'errors=0') {
+      # This is a summary line with zero errors, treat as neutral/info
+      $icon = "✅ "
+      $color = "Green"
+    } else {
+      $icon = "❌ "
+      $color = "Red"
+    }
   }
-  elseif ($Message -match 'warning|⚠️') { 
-    $icon = "⚠️  "
-    $color = "Yellow"
+  elseif ($Message -match '\bwarning\b|⚠️') { 
+    if ($Message -match 'warnings=0') {
+      # This is a summary line with zero warnings, treat as neutral/info
+      $icon = "✅ "
+      $color = "Green"
+    } else {
+      $icon = "⚠️  "
+      $color = "Yellow"
+    }
   }
-  elseif ($Message -match 'Trigger|Watching|Evaluating|ℹ️|Running update|📝|Polling|💤') { 
+  elseif ($Message -match 'Trigger|Watching|Evaluating|ℹ️|Running update|📝|Polling') { 
     $icon = "ℹ️  "
     $color = "Cyan"
   }
@@ -171,6 +183,8 @@ function Update-UnreleasedReleaseAudit {
     [int]$PrNumber,
     [Parameter(Mandatory = $true)]
     [string]$PrTitle,
+    [object[]]$Labels,
+    [object[]]$RemediationActions = @(),
     [string]$BaseRef = ""
   )
 
@@ -260,7 +274,7 @@ function Update-UnreleasedReleaseAudit {
   }
 
   Write-Status "Auto-apply updated '$Path' Release audit footer with $prToken."
-  $changeType = if (-not $prAlreadyListed -and -not $scopeAlreadySynced) { 'Both' } elseif (-not $prAlreadyListed) { 'List' } else { 'Scope' }
+  $changeType = if (-not $prAlreadyListed -and -not $scopeAlreadyGrown) { 'Both' } elseif (-not $prAlreadyListed) { 'List' } else { 'Scope' }
   return $changeType
 }
 
@@ -481,7 +495,8 @@ function Invoke-ReleaseSignalEvaluation {
     [AllowEmptyString()]
     [string]$PrBody = '',
     [AllowEmptyCollection()]
-    [object[]]$Labels = @()
+    [object[]]$Labels = @(),
+    [object[]]$Actions = @()
   )
 
   $eventPayload = @{
@@ -995,6 +1010,7 @@ while ($true) {
           if ($Apply) {
             Update-ReleaseSignalStatusSafe -RepoName $repoName -Sha $headSha -State 'pending' -Description 'Local release-signal running'
           }
+          $global:HasStartedPolling = $false
           Write-Status "Trigger: new PR head detected for #$prNumber (head=$headSha)."
           $evaluation = Invoke-ReleaseSignalEvaluation `
             -SourceId "pr-$prNumber-$headSha" `
@@ -1023,7 +1039,8 @@ while ($true) {
                   -BaseSha $baseSha `
                   -HeadSha $headSha `
                   -PrBody ([string]$pr.body) `
-                  -Labels @($pr.labels)
+                  -Labels @($pr.labels) `
+                  -Actions $remediationActions
               }
 
               $statusState = if ($evaluation['Failed']) { 'failure' } else { 'success' }
@@ -1057,6 +1074,7 @@ while ($true) {
         if ([string]$run.status -ne 'completed') {
           continue
         }
+        $global:HasStartedPolling = $false
         Invoke-ReleaseSignalForRun -RepoName $repoName -Run $run
       }
     }
@@ -1069,5 +1087,10 @@ while ($true) {
     break
   }
 
+  if (-not $global:HasStartedPolling) {
+    Write-Status "Watching for changes (polling every $($PollSeconds)s)"
+    $global:HasStartedPolling = $true
+  }
+  Write-Host "." -NoNewline -ForegroundColor Gray
   Start-Sleep -Seconds $PollSeconds
 }

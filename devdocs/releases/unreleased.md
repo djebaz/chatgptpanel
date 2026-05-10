@@ -22,5 +22,5 @@
 
 ## Release audit
 
-- PRs: #1, #2, #3, #4
-- Scope: tooling; artifact-optimization; README, docsync and formatting; Removed obsolete API client logic and complex unit tests in favor of a clean, minimal wrapper;
+- PRs: #1, #2, #3, #4, #5
+- Scope: tooling; artifact-optimization; README, docsync and formatting; Removed obsolete API client logic and complex unit tests in favor of a clean, minimal wrapper; implement e2e tests playwright 2959311289169985160
