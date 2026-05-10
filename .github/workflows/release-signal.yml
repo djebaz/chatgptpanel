@@ -1,0 +1,159 @@
+name: Release Signal
+
+on:
+#  pull_request:
+#    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: 'Base ref (SHA or branch) for release signal evaluation'
+        required: true
+        default: 'main'
+      head_ref:
+        description: 'Head ref (SHA or branch) for release signal evaluation'
+        required: true
+        default: 'HEAD'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  release-signal:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Evaluate release signal and docs sync
+        id: release_signal
+        run: |
+          pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-release-signal.ps1 \
+            -BaseRef "${{ github.event.pull_request.base.sha }}" \
+            -HeadRef "${{ github.event.pull_request.head.sha }}" \
+            | tee release-signal-log.txt
+
+      - name: Add release signal summary to Job Summary
+        if: always()
+        run: |
+          echo "### 🚀 Release Signal Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+          echo "| Release likely | \`${{ steps.release_signal.outputs.release_likely }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docs required | \`${{ steps.release_signal.outputs.docs_required }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Error count | \`${{ steps.release_signal.outputs.error_count }}\` |" >> $GITHUB_STEP_SUMMARY
+
+          echo "<details><summary>Expand detailed release signal log</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```text' >> $GITHUB_STEP_SUMMARY
+          if [ -f release-signal-log.txt ]; then
+            cat release-signal-log.txt >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No log found." >> $GITHUB_STEP_SUMMARY
+          fi
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY
+
+      - name: Sync release label from detection
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = context.payload.pull_request.number;
+            const explicitLabels = new Set(['release:needed', 'release:none']);
+            const currentLabels = (context.payload.pull_request.labels || []).map(label => label.name);
+            const hasExplicit = currentLabels.some(label => explicitLabels.has(label));
+            const releaseLikely = `${{ steps.release_signal.outputs.release_likely }}`.toLowerCase() === 'true';
+            const recommended = releaseLikely ? 'release:needed' : 'release:none';
+
+            if (!hasExplicit) {
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number,
+                labels: [recommended],
+              });
+              core.info(`Explicit release label missing; auto-applied \`${recommended}\` from the release-signal result.`);
+              return;
+            }
+
+      - name: Comment release-signal failure on PR
+        if: always() && steps.release_signal.outputs.error_count != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = context.payload.pull_request.number;
+            const releaseLikely = ${{ toJSON(steps.release_signal.outputs.release_likely) }};
+            const docsRequired = ${{ toJSON(steps.release_signal.outputs.docs_required) }};
+            const releaseReason = ${{ toJSON(steps.release_signal.outputs.release_reason) }};
+            const warningsJoined = ${{ toJSON(steps.release_signal.outputs.warnings_joined) }};
+            const errorsJoined = ${{ toJSON(steps.release_signal.outputs.errors_joined) }};
+            const warningItems = warningsJoined ? warningsJoined.split(' || ').filter(Boolean) : [];
+            const errorItems = errorsJoined ? errorsJoined.split(' || ').filter(Boolean) : [];
+            const marker = '<!-- release-signal-comment -->';
+
+            const lines = [
+              marker,
+              '## Release Signal',
+              '',
+              `- Release likely: \`${releaseLikely}\``,
+              `- Docs required: \`${docsRequired}\``,
+              `- Reason: ${releaseReason}`,
+            ];
+
+            if (errorItems.length) {
+              lines.push('', '### Errors');
+              for (const item of errorItems) {
+                lines.push(`- ${item}`);
+              }
+            }
+
+            if (warningItems.length) {
+              lines.push('', '### Warnings');
+              for (const item of warningItems.slice(0, 3)) {
+                lines.push(`- ${item}`);
+              }
+            }
+
+            lines.push(
+              '',
+              `See the failing check for full details: ${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`
+            );
+
+            const body = lines.join('\n');
+            const { data: comments } = await github.rest.issues.listComments({
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+            const existing = comments.find(comment =>
+              comment.user?.type === 'Bot' && comment.body?.includes(marker)
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+              core.info('Updated existing release-signal PR comment.');
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body,
+              });
+              core.info('Created release-signal PR comment.');
+            }

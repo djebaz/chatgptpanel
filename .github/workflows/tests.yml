@@ -1,0 +1,61 @@
+name: Tests
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Node.js tests
+        id: run_tests
+        run: |
+          npm test -- --reporters=default --reporters=github-actions-reporter | tee test-results.txt
+
+      - name: Add summary to Job Summary
+        if: always()
+        run: |
+          echo "### 🧪 Node.js Test Results" >> $GITHUB_STEP_SUMMARY
+
+          # Simple status table
+          echo "| Metric | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "| :--- | :---: |" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.run_tests.outcome }}" == "failure" ]; then
+            echo "| Tests | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Tests | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "<details><summary>Expand detailed test summary</summary>" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```text' >> $GITHUB_STEP_SUMMARY
+          if [ -f test-results.txt ]; then
+            tail -n 30 test-results.txt >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No test results found." >> $GITHUB_STEP_SUMMARY
+          fi
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "</details>" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,52 @@
+name: Artifact Sweeper
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Delete artifacts older than 30 minutes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Scanning for artifacts older than 30 minutes..."
+
+          # Fetch artifacts data
+          ARTIFACTS_JSON=$(gh api -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/actions/artifacts --paginate)
+
+          # Filter for artifacts older than 30 minutes (1800 seconds)
+          TO_DELETE=$(echo "$ARTIFACTS_JSON" | jq -c '.artifacts[] | select((.created_at | fromdateiso8601) < (now - 1800))')
+
+          COUNT=$(echo "$TO_DELETE" | jq -s 'length')
+          TOTAL_SIZE_BYTES=$(echo "$TO_DELETE" | jq -s 'map(.size_in_bytes) | add // 0')
+
+          if [ "$COUNT" -eq 0 ]; then
+            echo "No artifacts older than 30 minutes found. Storage is clean."
+            echo "### 🧹 Artifact Sweeper: Clean" >> $GITHUB_STEP_SUMMARY
+            echo "No expired artifacts found." >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+
+          echo "Deleting $COUNT artifacts ($((TOTAL_SIZE_BYTES / 1024 / 1024)) MB)..."
+
+          # Delete each artifact
+          echo "$TO_DELETE" | jq -r '.url' | while read -r url; do
+            echo "Deleting: $url"
+            gh api -X DELETE "$url"
+          done
+
+          # Output summary
+          echo "### 🧹 Artifact Sweeper Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Artifacts Deleted** | $COUNT |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Storage Reclaimed** | $((TOTAL_SIZE_BYTES / 1024 / 1024)) MB |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Storage quota management complete." >> $GITHUB_STEP_SUMMARY
