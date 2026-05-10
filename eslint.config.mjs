@@ -20,7 +20,7 @@ export default [
     files: ["src/**/*.js", "tests/**/*.js"],
     languageOptions: {
       ecmaVersion: "latest",
-      sourceType: "script",
+      sourceType: "module",
     },
     rules: {
       "no-const-assign": "error",

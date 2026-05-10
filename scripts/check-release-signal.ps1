@@ -853,7 +853,7 @@ function Get-ReleaseAuditMetadata {
   )
 
   $prsMatch = [regex]::Match($Text, '(?m)^- PRs:\s*(.+?)\r?$')
-  $scopeMatch = [regex]::Match($Text, '(?m)^- Scope:\s*(.+?)\r?$')
+  $scopeMatch = [regex]::Match($Text, '(?m)^- Scope:\s*(.*)\r?$')
 
   return @{
     HasParsablePrs = $prsMatch.Success
@@ -988,8 +988,10 @@ else {
           $baseReleaseAudit = Get-ReleaseAuditMetadata -Text $baseUnreleasedText
           $currentPrToken = "#$currentPrNumber"
           $prWasAddedToAudit = ($listedPrs -contains $currentPrToken) -and ($baseReleaseAudit.Prs -notcontains $currentPrToken)
-          if ($prWasAddedToAudit -and $baseReleaseAudit.Scope -eq $releaseAudit.Scope) {
-            $errors.Add(('⭕ `{0}` adds `#{1}` to `Release audit` `PRs:` but does not update the cumulative `Scope:` summary.' -f $unreleasedFile, $currentPrNumber)) | Out-Null
+          if ($prWasAddedToAudit) {
+            if ($releaseAudit.Scope.Length -le $baseReleaseAudit.Scope.Length) {
+              $errors.Add(('⭕ `{0}` adds `#{1}` to `Release audit` `PRs:` but does not update the cumulative `Scope:` summary (line did not grow).' -f $unreleasedFile, $currentPrNumber)) | Out-Null
+            }
           }
         }
         catch {
@@ -1048,6 +1050,7 @@ Write-OutputValue -Name 'has_release_label' -Value $hasReleaseLabel.ToString().T
 Write-OutputValue -Name 'recommended_release_label' -Value $(if ($releaseLikely) { $releaseNeededLabel } else { $releaseNoneLabel })
 Write-OutputValue -Name 'warnings_joined' -Value (Convert-ToSingleLineList -Items $warnings)
 Write-OutputValue -Name 'errors_joined' -Value (Convert-ToSingleLineList -Items $errors)
+Write-OutputValue -Name 'base_ref' -Value $BaseRef
 
 if ($SummaryPath) {
   Add-SummaryLine -Line '## Release signal'
