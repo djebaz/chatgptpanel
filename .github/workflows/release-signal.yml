@@ -64,7 +64,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-release-signal.ps1 \
+          pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-release-signal-ci.ps1 \
             -BaseRef "${{ steps.refs.outputs.base_ref }}" \
             -HeadRef "${{ steps.refs.outputs.head_ref }}" \
             | tee release-signal-initial-log.txt
@@ -238,7 +238,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-release-signal.ps1 \
+          pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-release-signal-ci.ps1 \
             -BaseRef "${{ steps.refs.outputs.base_ref }}" \
             -HeadRef HEAD \
             | tee release-signal-log.txt
