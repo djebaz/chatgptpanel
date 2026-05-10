@@ -170,7 +170,8 @@ function Update-UnreleasedReleaseAudit {
     [Parameter(Mandatory = $true)]
     [int]$PrNumber,
     [Parameter(Mandatory = $true)]
-    [string]$PrTitle
+    [string]$PrTitle,
+    [string]$BaseRef = ""
   )
 
   if (-not (Test-Path -LiteralPath $Path)) {
@@ -192,10 +193,11 @@ function Update-UnreleasedReleaseAudit {
   $scopeAlreadyGrown = $false
   try {
     $repoName = Get-RepositoryName -Repo $Repository
-    $baseBranch = Get-DefaultBaseBranch -RepoName $repoName
-    $baseUnreleasedText = Invoke-Git -Args @('show', "origin/$baseBranch`:$Path")
+    $baseBranch = if ($BaseRef) { $BaseRef } else { Get-DefaultBaseBranch -RepoName $repoName }
+    $baseRefPath = if ($BaseRef) { "$BaseRef`:$Path" } else { "origin/$baseBranch`:$Path" }
+    $baseUnreleasedText = Invoke-Git -Args @('show', $baseRefPath)
     $baseFooter = Get-ReleaseAuditFooter -Text $baseUnreleasedText
-    if ($baseFooter -and $footer.ScopeLine.Length -gt $baseFooter.ScopeLine.Length) {
+    if ($baseFooter -and $footer.ScopeLine.Length -ge $baseFooter.ScopeLine.Length) {
       $scopeAlreadyGrown = $true
       Write-Status "Scope already grown ($($footer.ScopeLine.Length) > $($baseFooter.ScopeLine.Length)). Skipping auto-append."
     }
@@ -340,7 +342,9 @@ function Invoke-AutoRemediation {
     ($errorsJoined -match 'Scope|summary|line did not grow')
 
   if ($missingAuditPrError -or $scopeMismatchError) {
-    $result = Update-UnreleasedReleaseAudit -Path $UnreleasedPath -PrNumber $PrNumber -PrTitle $PrTitle
+    Write-Status "Audit remediation triggered (MissingPR=$missingAuditPrError, ScopeMismatch=$scopeMismatchError)"
+    $baseRef = if ($Outputs.ContainsKey('base_ref')) { $Outputs['base_ref'] } else { "" }
+    $result = Update-UnreleasedReleaseAudit -Path $UnreleasedPath -PrNumber $PrNumber -PrTitle $PrTitle -BaseRef $baseRef
     if ($result) {
       if ($result -eq 'List' -or $result -eq 'Both') {
         $actions.Add("Synced PR #$PrNumber to `Release audit` list 📜") | Out-Null

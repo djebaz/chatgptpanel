@@ -853,7 +853,7 @@ function Get-ReleaseAuditMetadata {
   )
 
   $prsMatch = [regex]::Match($Text, '(?m)^- PRs:\s*(.+?)\r?$')
-  $scopeMatch = [regex]::Match($Text, '(?m)^- Scope:\s*(.+?)\r?$')
+  $scopeMatch = [regex]::Match($Text, '(?m)^- Scope:\s*(.*)\r?$')
 
   return @{
     HasParsablePrs = $prsMatch.Success
@@ -1053,6 +1053,7 @@ Write-OutputValue -Name 'has_release_label' -Value $hasReleaseLabel.ToString().T
 Write-OutputValue -Name 'recommended_release_label' -Value $(if ($releaseLikely) { $releaseNeededLabel } else { $releaseNoneLabel })
 Write-OutputValue -Name 'warnings_joined' -Value (Convert-ToSingleLineList -Items $warnings)
 Write-OutputValue -Name 'errors_joined' -Value (Convert-ToSingleLineList -Items $errors)
+Write-OutputValue -Name 'base_ref' -Value $BaseRef
 
 if ($SummaryPath) {
   Add-SummaryLine -Line '## Release signal'

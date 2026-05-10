@@ -5,6 +5,10 @@ param(
 
 #Requires -PSEdition Core
 Set-StrictMode -Version Latest
+param (
+    [string]$BaseRef = 'origin/main'
+)
+
 $ErrorActionPreference = 'Stop'
 
 function Invoke-NativeChecked {
@@ -92,13 +96,12 @@ for ($i = 0; $i -lt $content.Length; $i++) {
         $scope = $matches[1]
         
         # Determine if the scope line has already grown compared to the base branch
-        $baseBranch = 'origin/main'
         $scopeAlreadyGrown = $false
         try {
-            $baseContent = Invoke-NativeChecked -CommandName 'git' -Args @('show', "${baseBranch}:devdocs/releases/unreleased.md")
+            $baseContent = Invoke-NativeChecked -CommandName 'git' -Args @('show', "${BaseRef}:devdocs/releases/unreleased.md")
             if ($baseContent -match '^-?\s*Scope:\s*(.*)$') {
                 $baseScope = $matches[1]
-                if ($scope.Length -gt $baseScope.Length) {
+                if ($scope.Length -ge $baseScope.Length) {
                     $scopeAlreadyGrown = $true
                 }
             }
