@@ -2,12 +2,13 @@
 
 ### Highlights
 
-- Added a ChatGPT-style dark theme popup with options to open ChatGPT in the side panel, a standalone window, or a new tab.
+- Added a ChatGPT-style dark theme popup with options to open ChatGPT in the side panel, a popup, or a new tab.
 - Simplified extension to a "Simple Wrapper" approach, directly opening ChatGPT in a popup window.
 
 ### Added
 
 - `package-lock.json` committed for reproducible builds.
+- Added ChatGPT-style SVG outline icons to popup buttons.
 
 ### Changed
 
@@ -24,5 +25,5 @@
 
 ## Release audit
 
-- PRs: #1, #2, #3, #4, #5, #6, #7
-- Scope: tooling; artifact-optimization; README, docsync and formatting; Removed obsolete API client logic and complex unit tests in favor of a clean, minimal wrapper; implement e2e tests playwright; fix e2e implementation and package config; add multi-open popup with side panel and tab options
+- PRs: #1, #2, #3, #4, #5, #6, #7, #8
+- Scope: tooling; artifact-optimization; README, docsync and formatting; Removed obsolete API client logic and complex unit tests in favor of a clean, minimal wrapper; implement e2e tests playwright; fix e2e implementation and package config; add multi-open popup with side panel and tab options; add svg icons to popup buttons

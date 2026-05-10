@@ -11,10 +11,7 @@ test.describe('ChatGPT Panel E2E Test', () => {
   test.beforeAll(async () => {
     browserContext = await chromium.launchPersistentContext('', {
       headless: false, // Extensions only work in headful mode
-      args: [
-        `--disable-extensions-except=${pathToExtension}`,
-        `--load-extension=${pathToExtension}`,
-      ],
+      args: [`--disable-extensions-except=${pathToExtension}`, `--load-extension=${pathToExtension}`],
     });
   });
 
@@ -44,7 +41,7 @@ test.describe('ChatGPT Panel E2E Test', () => {
     // 4. Click the "Open in Window" button and wait for the new popup to be created
     const newPagePromise = browserContext.waitForEvent('page');
     await popupPage.locator('#btn-popup').click();
-    
+
     // 5. Wait for the new window/page to open
     const newPage = await newPagePromise;
     await newPage.waitForLoadState('domcontentloaded');
