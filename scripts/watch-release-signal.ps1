@@ -46,6 +46,10 @@ function Write-Status {
     $icon = "ℹ️  "
     $color = "Cyan"
   }
+  elseif ($Message -match 'Evaluate') {
+    $icon = "🔍 "
+    $color = "Magenta"
+  }
   
   Write-Host "[$ts] " -NoNewline -ForegroundColor Gray
   Write-Host "$icon$Message" -ForegroundColor $color
@@ -77,7 +81,7 @@ function Invoke-Git {
     throw "git $($Args -join ' ') failed ($exitCode): $($raw -join [Environment]::NewLine)"
   }
 
-  return $raw
+  return ($raw -join "`n")
 }
 
 function Set-CommitStatus {
@@ -327,12 +331,16 @@ function Invoke-AutoRemediation {
   }
 
   $errorsJoined = if ($Outputs.ContainsKey('errors_joined')) { $Outputs['errors_joined'] } else { '' }
+  if ($errorsJoined) {
+      Write-Status "[DEBUG] Errors detected: $errorsJoined"
+  }
+  
   $missingAuditPrError = $errorsJoined -and
     $errorsJoined.Contains('must list the current PR number') -and
     ($errorsJoined -match "#$PrNumber\b")
 
   $scopeMismatchError = $errorsJoined -and
-    $errorsJoined.Contains('but does not update the cumulative Scope: summary')
+    ($errorsJoined -match 'Scope:.*summary')
 
   if ($missingAuditPrError -or $scopeMismatchError) {
     $result = Update-UnreleasedReleaseAudit -Path $UnreleasedPath -PrNumber $PrNumber -PrTitle $PrTitle
@@ -478,7 +486,7 @@ function Invoke-ReleaseSignalEvaluation {
     Remove-Item -LiteralPath $summaryPath -Force
   }
 
-  Write-Status "Evaluating $SourceId for PR #$PrNumber ($BaseSha...$HeadSha)"
+  Write-Status "Evaluate $SourceId for PR #$PrNumber ($BaseSha...$HeadSha)"
   Write-Status "Trigger: $Trigger"
 
   $failed = $false
@@ -986,7 +994,7 @@ while ($true) {
 
               # If we performed remediations that don't trigger a new commit (like PR body fixes),
               # we should re-evaluate to see if we now pass.
-              if ($evaluation['Failed'] -and $remediationActions.Count -gt 0) {
+              if ($evaluation['Failed'] -and @($remediationActions).Count -gt 0) {
                 # Fetch fresh PR metadata in case body changed
                 $pr = Invoke-GhJson -Args @('api', "repos/$repoName/pulls/$prNumber")
                 $evaluation = Invoke-ReleaseSignalEvaluation `
