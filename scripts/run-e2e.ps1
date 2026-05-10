@@ -31,7 +31,9 @@ $job = Start-Job -ScriptBlock {
 
         if ($allChrome) {
             # Filter: Select ONLY processes where PriorityClass is higher than Normal
-            $targetProcesses = $allChrome | Where-Object { $_.PriorityClass -gt [System.Diagnostics.ProcessPriorityClass]::Normal }
+            # On Linux/PS Core, direct enum comparison might fail with "The binary operator LessThan is not defined"
+            # so we cast to [int] to ensure numeric comparison.
+            $targetProcesses = $allChrome | Where-Object { [int]$_.PriorityClass -gt [int][System.Diagnostics.ProcessPriorityClass]::Normal }
 
             if ($targetProcesses) {
                 try {
