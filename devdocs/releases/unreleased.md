@@ -2,7 +2,7 @@
 
 ### Highlights
 
-- Added a ChatGPT-style dark theme popup with options to open ChatGPT in the side panel, a standalone window, or a new tab.
+- Added a ChatGPT-style dark theme popup with options to open ChatGPT in the side panel, a popup, or a new tab.
 - Simplified extension to a "Simple Wrapper" approach, directly opening ChatGPT in a popup window.
 
 ### Added
