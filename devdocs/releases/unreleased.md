@@ -26,5 +26,5 @@
 
 ## Release audit
 
-- PRs: #1, #2, #3, #4, #5, #6, #7, #8, #9, #11
-- Scope: tooling; artifact-optimization; README, docsync and formatting; Removed obsolete API client logic and complex unit tests in favor of a clean, minimal wrapper; implement e2e tests playwright; fix e2e implementation and package config; add multi-open popup with side panel and tab options; add svg icons to popup buttons; sync release-signal-config with current repository structure; fix CI playwright setup and reporting
+- PRs: #1, #2, #3, #4, #5, #6, #7, #8, #9, #11, #12
+- Scope: tooling; artifact-optimization; README, docsync and formatting; Removed obsolete API client logic and complex unit tests in favor of a clean, minimal wrapper; implement e2e tests playwright; fix e2e implementation and package config; add multi-open popup with side panel and tab options; add svg icons to popup buttons; sync release-signal-config with current repository structure; fix CI playwright setup and reporting; refactor workflow tests 7813763067266030219
