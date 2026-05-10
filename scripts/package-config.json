@@ -8,7 +8,6 @@
     "manifest.json",
     "background.js",
     "icons",
-    "lib",
     "popup.html",
     "popup.js",
     "sidepanel.html",
