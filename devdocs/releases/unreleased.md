@@ -22,4 +22,4 @@
 ## Release audit
 
 - PRs: #1, #2, #3
-- Scope: tooling; artifact-optimization; README, docsync and formatting;
+- Scope: tooling; artifact-optimization; README, docsync and formatting; doc sync tooling
