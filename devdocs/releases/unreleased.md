@@ -23,4 +23,4 @@
 ## Release audit
 
 - PRs: #1, #2, #3, #4
-- Scope: tooling; artifact-optimization; README; unit tests v1 3258527929282857917; unit tests v1 3258527929282857917
+- Scope: tooling; artifact-optimization; README; unit tests v1 3258527929282857917
