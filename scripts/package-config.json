@@ -6,13 +6,8 @@
   "appName": "ChatPTPanel",
   "allowlist": [
     "manifest.json",
-    "background",
-    "popup",
-    "manager",
-    "offscreen",
-    "shared",
-    "content",
-    "detached",
+    "background.js",
+    "icons",
     "lib",
     "assets"
   ],

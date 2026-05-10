@@ -12,7 +12,7 @@ if ($PSVersionTable.PSEdition -ne 'Core') {
 $ErrorActionPreference = 'Stop'
 
 ./scripts/package-extension.ps1 -DevBuild -Version 99 -NoZip
-$env:EXTENSION_PATH = (Resolve-Path './dist/AutoClickerPro-99-dev').Path
+$env:EXTENSION_PATH = (Resolve-Path './dist/ChatPTPanel-99-dev').Path
 
 if ($null -eq $PlaywrightArgs) {
     $PlaywrightArgs = @()
