@@ -1,7 +1,7 @@
 {
   "name": "chatgptpanel",
   "version": "1.0.0",
-  "description": "Auto Clicker Pro â€” Chrome/Brave extension for automated clicking and video automation.",
+  "description": "Access OpenAI ChatGPT in a mini window, perfect for multitasking devs to stay connected without leaving their workspace.",
   "license": "MIT",
   "type": "module",
   "devDependencies": {

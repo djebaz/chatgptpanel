@@ -1,6 +1,6 @@
 # chatgptpanel
 
-Auto Clicker Pro — Chrome/Brave extension for automated clicking and video automation.
+Access OpenAI ChatGPT in a mini window, perfect for multitasking devs to stay connected without leaving their workspace.
 
 ## Development
 
