@@ -7,6 +7,8 @@ This guide equips AI agents with the architecture, patterns, and rules needed to
 - Release automation:
   - `scripts/check-release-signal.ps1` is the release-signal validator used by CI. It classifies changes, validates release-audit metadata, emits GitHub Actions outputs, and fails when release-audit requirements are not met.
   - `.github/workflows/release-signal.yml` runs on pull requests and manual dispatch. Same-repository pull requests can auto-fix the `devdocs/releases/unreleased.md` Release audit footer, push the update back to the PR branch, and re-run validation as the final hard gate. Forked PRs and manual dispatches are validation-only.
+  - Auto-fix commits made with the default workflow `GITHUB_TOKEN` do not trigger a second GitHub Actions run. Configure a `RELEASE_SIGNAL_PUSH_TOKEN` secret if follow-up checks must run automatically after an auto-fix push.
+  - The workflow comments on PRs after release-signal evaluation. The comment uses the same admonition-style status block as the local watcher and is refreshed on each pull-request run.
   - `scripts/watch-release-signal.ps1` is the local watcher/remediator. It can monitor the current PR, update labels/comments/statuses, and auto-apply Release audit fixes from a developer machine when invoked with the appropriate options.
   - `scripts/update-unreleased-audit.ps1` is the focused helper for Release audit footer updates. It expects a non-detached feature branch and may create/use a PR via `gh`.
 - Artifact Strategy: GitHub Action storage is optimized to minimize GB-Hours.
