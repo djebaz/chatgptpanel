@@ -7,6 +7,7 @@
 ### Added
 
 - `package-lock.json` committed for reproducible builds.
+- Comprehensive E2E tests using Playwright.
 
 ### Changed
 
@@ -22,5 +23,5 @@
 
 ## Release audit
 
-- PRs: #1, #2, #3
-- Scope: tooling; artifact-optimization; README, docsync and formatting; doc sync tooling
+- PRs: #1, #2, #3, #4
+- Scope: tooling; artifact-optimization; README, docsync and formatting; doc sync tooling; feat: implement E2E tests with Playwright
