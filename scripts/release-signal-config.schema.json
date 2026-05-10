@@ -1,0 +1,374 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://autofilterxham.local/schemas/release-signal-config.schema.json",
+  "title": "AutofilterXHam release signal config",
+  "description": "Declarative configuration for scripts/check-release-signal.ps1. The script treats files as low-signal, high-signal, or conditionally classified based on token and semantic rule types.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "version", "project", "lowSignal", "nonTrivialLines", "highSignal", "conditionalFiles", "labels", "docsPolicy"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Relative or absolute URI of this JSON Schema file. Example: ./release-signal-config.schema.json."
+    },
+    "version": {
+      "type": "string",
+      "description": "Config schema/data version consumed by the release signal script.",
+      "enum": ["2.0"]
+    },
+    "project": {
+      "type": "string",
+      "description": "Project identifier used for human readability and guardrails.",
+      "minLength": 1
+    },
+    "lowSignal": {
+      "$ref": "#/$defs/lowSignal"
+    },
+    "nonTrivialLines": {
+      "$ref": "#/$defs/nonTrivialLines"
+    },
+    "highSignal": {
+      "type": "array",
+      "description": "Rules that immediately classify matching files or paths as release-significant.",
+      "items": {
+        "$ref": "#/$defs/highSignalRule"
+      },
+      "uniqueItems": true
+    },
+    "conditionalFiles": {
+      "type": "array",
+      "description": "Rules for files whose release significance depends on the changed lines.",
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/tokenAnyVsTokenAllRule"
+          },
+          {
+            "$ref": "#/$defs/cssVisibleVsCleanupRule"
+          },
+          {
+            "$ref": "#/$defs/metadataSelectorRule"
+          }
+        ]
+      },
+      "uniqueItems": true
+    },
+    "labels": {
+      "$ref": "#/$defs/labels"
+    },
+    "docsPolicy": {
+      "$ref": "#/$defs/docsPolicy"
+    },
+    "coverageAudit": {
+      "type": "object",
+      "description": "Optional: Audits that critical shipped files/prefixes are covered by either highSignal or conditionalFiles.",
+      "additionalProperties": false,
+      "properties": {
+        "requiredReleaseSignalFiles": {
+          "$ref": "#/$defs/stringArray",
+          "description": "Files that must be covered by highSignal or conditionalFiles."
+        },
+        "requiredReleaseSignalPathPrefixes": {
+          "$ref": "#/$defs/stringArray",
+          "description": "Path prefixes that must be covered by highSignal or conditionalFiles."
+        }
+      }
+    }
+  },
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "stringArray": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/nonEmptyString"
+      },
+      "uniqueItems": true
+    },
+    "reason": {
+      "type": "string",
+      "description": "Human-readable explanation emitted in CI output when this rule is used.",
+      "minLength": 1
+    },
+    "lowSignal": {
+      "type": "object",
+      "description": "Files and path prefixes that are considered low-signal unless labels override the result.",
+      "additionalProperties": false,
+      "required": ["exactFiles", "pathPrefixes"],
+      "properties": {
+        "exactFiles": {
+          "$ref": "#/$defs/stringArray",
+          "description": "Exact repository-relative file paths treated as low-signal."
+        },
+        "pathPrefixes": {
+          "$ref": "#/$defs/stringArray",
+          "description": "Repository-relative path prefixes treated as low-signal."
+        }
+      }
+    },
+    "nonTrivialLines": {
+      "type": "object",
+      "description": "Defines which changed lines are ignored before classification.",
+      "additionalProperties": false,
+      "required": ["lineCommentPrefixes", "blockCommentPrefixes", "punctuationOnlyChars"],
+      "properties": {
+        "lineCommentPrefixes": {
+          "$ref": "#/$defs/stringArray",
+          "description": "Line prefixes ignored as comments after trimming."
+        },
+        "blockCommentPrefixes": {
+          "$ref": "#/$defs/stringArray",
+          "description": "Block-comment or doc-comment prefixes ignored after trimming."
+        },
+        "punctuationOnlyChars": {
+          "type": "string",
+          "description": "If a trimmed changed line contains only these characters, it is ignored.",
+          "minLength": 1
+        }
+      }
+    },
+    "highSignalRule": {
+      "type": "object",
+      "description": "A file, file list, or path-prefix rule that is always release-significant when changed.",
+      "additionalProperties": false,
+      "required": ["reason", "userFacing"],
+      "anyOf": [
+        {
+          "required": ["file"]
+        },
+        {
+          "required": ["files"]
+        },
+        {
+          "required": ["pathPrefixes"]
+        }
+      ],
+      "properties": {
+        "file": {
+          "$ref": "#/$defs/nonEmptyString",
+          "description": "Single exact repository-relative file path."
+        },
+        "files": {
+          "$ref": "#/$defs/stringArray",
+          "description": "Multiple exact repository-relative file paths."
+        },
+        "pathPrefixes": {
+          "$ref": "#/$defs/stringArray",
+          "description": "Repository-relative path prefixes."
+        },
+        "reason": {
+          "$ref": "#/$defs/reason"
+        },
+        "userFacing": {
+          "type": "boolean",
+          "description": "Whether the rule is expected to affect user-visible behavior."
+        }
+      }
+    },
+    "conditionalRuleBase": {
+      "type": "object",
+      "required": ["file", "type", "ambiguousReason", "userFacing"],
+      "properties": {
+        "file": {
+          "$ref": "#/$defs/nonEmptyString",
+          "description": "Exact repository-relative file path this conditional rule applies to."
+        },
+        "type": {
+          "type": "string",
+          "description": "Rule engine used by check-release-signal.ps1."
+        },
+        "ambiguousReason": {
+          "$ref": "#/$defs/reason"
+        },
+        "userFacing": {
+          "type": "boolean",
+          "description": "Default user-facing value emitted by this conditional rule."
+        }
+      }
+    },
+    "tokenAnyVsTokenAllRule": {
+      "description": "Classifies a file as release-significant if any user-facing token or JS action name is touched; classifies as helper-only if every non-trivial changed line contains a helper-only token.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/conditionalRuleBase"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["file", "type", "userFacingTokens", "helperOnlyTokens", "userFacingReason", "helperOnlyReason", "ambiguousReason", "userFacing"],
+          "properties": {
+            "file": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "type": {
+              "const": "token_any_vs_token_all"
+            },
+            "userFacingTokens": {
+              "$ref": "#/$defs/stringArray",
+              "description": "Plain substrings. If any appears in the changed non-trivial text, the rule is release-significant."
+            },
+            "helperOnlyTokens": {
+              "$ref": "#/$defs/stringArray",
+              "description": "Plain substrings. If all non-trivial changed lines contain one of these and no user-facing token matched, the rule is helper-only."
+            },
+            "jsActionNames": {
+              "$ref": "#/$defs/stringArray",
+              "description": "Action names matched semantically as action: 'name' or action: \"name\"."
+            },
+            "userFacingReason": {
+              "$ref": "#/$defs/reason"
+            },
+            "helperOnlyReason": {
+              "$ref": "#/$defs/reason"
+            },
+            "ambiguousReason": {
+              "$ref": "#/$defs/reason"
+            },
+            "userFacing": {
+              "type": "boolean"
+            }
+          }
+        }
+      ]
+    },
+    "cssVisibleVsCleanupRule": {
+      "description": "Classifies CSS changes as release-significant when selectors/properties imply visible behavior; classifies CSS-variable/token extraction as cleanup-only.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/conditionalRuleBase"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "file",
+            "type",
+            "userFacingSelectors",
+            "userFacingProperties",
+            "cleanupPropertiesUsingCssVariable",
+            "userFacingReason",
+            "cleanupOnlyReason",
+            "ambiguousReason",
+            "userFacing"
+          ],
+          "properties": {
+            "file": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "type": {
+              "const": "css_visible_vs_cleanup"
+            },
+            "userFacingSelectors": {
+              "$ref": "#/$defs/stringArray",
+              "description": "Plain selector substrings that imply user-visible CSS behavior when touched."
+            },
+            "userFacingProperties": {
+              "$ref": "#/$defs/stringArray",
+              "description": "CSS property families treated as visible behavior. A family also matches hyphenated sub-properties."
+            },
+            "cleanupPropertiesUsingCssVariable": {
+              "$ref": "#/$defs/stringArray",
+              "description": "CSS property families treated as cleanup-only when the changed line uses var(--...)."
+            },
+            "userFacingReason": {
+              "$ref": "#/$defs/reason"
+            },
+            "cleanupOnlyReason": {
+              "$ref": "#/$defs/reason"
+            },
+            "ambiguousReason": {
+              "$ref": "#/$defs/reason"
+            },
+            "userFacing": {
+              "type": "boolean"
+            }
+          }
+        }
+      ]
+    },
+    "metadataSelectorRule": {
+      "description": "Special rule for websites-metadata.js. Selector-array reformatting is non-release if selector keys and literal selector values are unchanged; metadata/parser/capability tokens are release-significant.",
+      "allOf": [
+        {
+          "$ref": "#/$defs/conditionalRuleBase"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["file", "type", "selectorKeys", "metadataFunctionPrefixes", "metadataTokens", "formatOnlyReason", "metadataReason", "ambiguousReason", "userFacing"],
+          "properties": {
+            "file": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "type": {
+              "const": "metadata_selector"
+            },
+            "selectorKeys": {
+              "$ref": "#/$defs/stringArray",
+              "description": "Metadata object keys whose selector array formatting can be recognized semantically."
+            },
+            "metadataFunctionPrefixes": {
+              "$ref": "#/$defs/stringArray",
+              "description": "Function-name prefixes treated as metadata/parser logic when matched as function <prefix>."
+            },
+            "metadataTokens": {
+              "$ref": "#/$defs/stringArray",
+              "description": "Plain substrings indicating supported-site matching, capabilities, selectors, or parser logic."
+            },
+            "formatOnlyReason": {
+              "$ref": "#/$defs/reason"
+            },
+            "metadataReason": {
+              "$ref": "#/$defs/reason"
+            },
+            "ambiguousReason": {
+              "$ref": "#/$defs/reason"
+            },
+            "userFacing": {
+              "type": "boolean"
+            }
+          }
+        }
+      ]
+    },
+    "labels": {
+      "type": "object",
+      "description": "GitHub labels that force or suppress release significance.",
+      "additionalProperties": false,
+      "required": ["releaseNeeded", "releaseNone"],
+      "properties": {
+        "releaseNeeded": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "releaseNone": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "docsPolicy": {
+      "type": "object",
+      "description": "Documentation files used by the release signal docs policy checks.",
+      "additionalProperties": false,
+      "required": ["unreleasedFile", "readmeFile", "changelogFile", "agentsFile", "workflowPathPrefixes"],
+      "properties": {
+        "unreleasedFile": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "readmeFile": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "changelogFile": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "agentsFile": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "workflowPathPrefixes": {
+          "$ref": "#/$defs/stringArray"
+        }
+      }
+    }
+  }
+}

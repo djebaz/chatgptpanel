@@ -1,0 +1,126 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build dev dist (pwsh .\\scripts\\package-extension.ps1 -Version 999 -NoZip)",
+            "type": "shell",
+            "command": "pwsh",
+            "args": [
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                "./scripts/package-extension.ps1",
+                "-Version",
+                "999",
+                "-NoZip",
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "presentation": {
+                "reveal": "always"
+            }
+        },
+        {
+            "label": "watch:release-signal",
+            "type": "shell",
+            "command": "pwsh",
+            "args": [
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                "./scripts/watch-release-signal.ps1",
+                "-Mode",
+                "current-pr",
+                "-Apply",
+                "-PollSeconds",
+                "30"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "runOptions": {
+                "runOn": "folderOpen"
+            },
+            "isBackground": true,
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": false
+            }
+        },
+        {
+            "label": "Create feature branch from main",
+            "type": "shell",
+            "command": "pwsh",
+            "args": [
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                "git fetch origin main; git checkout main; git pull; $branch=Read-Host 'Enter new feature branch name, e.g. feat/ci-improvements'; git checkout -b $branch"
+            ],
+            "presentation": {
+                "reveal": "always"
+            }
+        },
+        {
+            "label": "Open PR and update unreleased.md audit",
+            "type": "shell",
+            "command": "pwsh",
+            "args": [
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                "./scripts/update-unreleased-audit.ps1"
+            ],
+            "presentation": {
+                "reveal": "always"
+            }
+        },
+        {
+            "label": "Squash and merge PR",
+            "type": "shell",
+            "command": "pwsh",
+            "args": [
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                "$branch=$(git rev-parse --abbrev-ref HEAD); $pr=$(gh pr list --state open --head $branch --json number -q \".[0].number\"); if (-not $pr) { Write-Host 'No open PR found for this branch.'; exit 1 }; gh pr merge $pr --squash --delete-branch --admin=false --auto; git checkout main; git pull"
+            ],
+            "presentation": {
+                "reveal": "always"
+            }
+        },
+        {
+            "label": "Format code (npm run format:write)",
+            "type": "shell",
+            "command": "npm",
+            "args": [
+                "run",
+                "format:write"
+            ],
+            "presentation": {
+                "reveal": "always"
+            }
+        },
+        {
+            "label": "Run unit tests (npm test)",
+            "type": "shell",
+            "command": "npm",
+            "args": [
+                "test"
+            ],
+            "presentation": {
+                "reveal": "always"
+            }
+        }
+    ]
+}

@@ -1,0 +1,38 @@
+{
+  "srcRoot": ".",
+  "distRoot": "dist",
+  "manifestPath": "manifest.json",
+  "manifestRelPath": "manifest.json",
+  "appName": "MultiSiteFilters",
+  "allowlist": [
+    "rulesets/motherless-thumb-redirect.json",
+    "cache-telemetry.js",
+    "manifest.json",
+    "background.js",
+    "websites-metadata.js",
+    "motherless-runtime.js",
+    "runtime-utils.js",
+    "site-adapters.js",
+    "ratio-runtime.js",
+    "filter-engine.js",
+    "content.js",
+    "popup.html",
+    "popup.js",
+    "cache-export.js",
+    "styles.css",
+    "icon48.png",
+    "icon128.png",
+    "icon19.png"
+  ],
+  "excludeFolders": [
+    "tests",
+    "test",
+    "__tests__",
+    "node_modules",
+    "scripts",
+    ".github",
+    ".vscode"
+  ],
+  "excludeGlobs": ["**/*.md", "**/*.txt", "**/*.map", "**/*.log"],
+  "excludeNamePatterns": ["\\.map$", "\\.bak$", "\\.log$", "\\.tmp$"]
+}

@@ -1,0 +1,5 @@
+{
+    "chatgpt.commentCodeLensEnabled": false,
+    "git.autofetch": true,
+    "claudeCode.allowDangerouslySkipPermissions": false
+}
