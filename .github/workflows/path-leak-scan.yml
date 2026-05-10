@@ -1,11 +1,11 @@
 name: Absolute Path Leak Scan
 
 on:
-#  pull_request:
-#    types: [opened, synchronize, reopened]
-#  push:
-#    branches:
-#      - main
+  #  pull_request:
+  #    types: [opened, synchronize, reopened]
+  #  push:
+  #    branches:
+  #      - main
   workflow_dispatch:
     inputs:
       scan_scope:
@@ -94,11 +94,14 @@ jobs:
         run: |
           echo "### 🔍 Path Leak Scan Results" >> $GITHUB_STEP_SUMMARY
           if [ -f leak-results.txt ]; then
+            echo "| Metric | Status |" >> $GITHUB_STEP_SUMMARY
+            echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
             if grep -q "Leak pattern(s) detected:" leak-results.txt; then
-              echo "Status: ❌ Leaks detected" >> $GITHUB_STEP_SUMMARY
+              echo "| Leaks | ❌ Leaks detected |" >> $GITHUB_STEP_SUMMARY
             else
-              echo "Status: ✅ No leaks detected" >> $GITHUB_STEP_SUMMARY
+              echo "| Leaks | ✅ No leaks detected |" >> $GITHUB_STEP_SUMMARY
             fi
+            echo "" >> $GITHUB_STEP_SUMMARY
             echo "<details><summary>Expand to view full scan logs</summary>" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo '```text' >> $GITHUB_STEP_SUMMARY

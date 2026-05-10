@@ -2,9 +2,7 @@
 
 ### Highlights
 
-
 ### Added
-
 
 ### Changed
 
@@ -16,5 +14,5 @@
 
 ## Release audit
 
-- PRs: #xx
-- Scope: placeholder; feat;
+- PRs: #1
+- Scope: placeholder; feat; Optimize GitHub Actions Artifact;

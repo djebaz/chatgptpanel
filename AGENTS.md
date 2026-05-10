@@ -6,8 +6,8 @@ This guide equips AI agents with the architecture, patterns, and rules needed to
 - Encoding & Line Endings: All source files (JS/JSON/CSS/HTML/MD/PS1) are UTF-8 without BOM with LF line endings. Enforce via `.editorconfig` (`end_of_line = lf`), `.gitattributes` (`* text=auto eol=lf`), and `.prettierrc` (`endOfLine: "lf"`). Windows Git config: `core.autocrlf=false` and `core.eol=lf`. Format commands: `npm run format:write` (code-focused) and `npm run format:all` (comprehensive with scripts, workflows, devdocs).
 - Release automation: `scripts/update-unreleased-audit.ps1` manages PR audit updates. It pauses 45 seconds after branch push to allow manual PR creation with proper body, then checks if a PR exists before auto-creating. Use `-DelaySeconds 0` to skip the wait. This prevents duplicate PRs from timing race conditions.
 - Artifact Strategy: GitHub Action storage is optimized to minimize GB-Hours.
-  - Text-based logs and test results are captured in **Job Summaries** instead of file artifacts.
-  - Binary artifacts (if any) are only uploaded on failure, with `retention-days: 1` and `continue-on-error: true`.
+  - Text-based logs and test results are captured in **Job Summaries** (using Markdown tables and ✅/❌ icons for high-level visibility) instead of file artifacts.
+  - Binary artifacts (if any) are only uploaded on failure (`if: failure()`), with `retention-days: 1` and `continue-on-error: true`.
   - An **Artifact Sweeper** cron job aggressively purges all artifacts older than 30 minutes.
 - Coding: Keep changes minimal, follow existing style, avoid POSIX tools. Content owns countdown timing; background mirrors state and renders badges.
 
