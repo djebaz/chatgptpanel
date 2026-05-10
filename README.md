@@ -2,7 +2,10 @@
 
 Access OpenAI ChatGPT in a mini window, perfect for multitasking devs to stay connected without leaving their workspace.
 
-This extension is a **Simple Wrapper** that opens the official ChatGPT website in a dedicated popup window, providing a distraction-free and easily accessible interface.
+This extension provides a dedicated action popup allowing you to open the official ChatGPT website in three ways:
+- **Side Panel**: Pin ChatGPT to the side of your browser.
+- **Standalone Window**: A clean, distraction-free popup window.
+- **New Tab**: Standard full-tab experience.
 
 ## Development
 
