@@ -963,40 +963,39 @@ if ($prBody -and $prBody -match '\\n') {
 if (-not $hasUnreleasedUpdate) {
   $warnings.Add(('⚠️Every PR should update `{0}` before merge. Add or adjust the relevant unreleased bullet if needed, and always update the `Release audit` footer with this PR number and the current unreleased scope.' -f $unreleasedFile)) | Out-Null
 }
+
+$unreleasedText = Get-Content -Raw -LiteralPath $unreleasedFile
+$releaseAuditPattern = '(?s)## Release audit\r?\n\r?\n- PRs:\s*.+\r?\n- Scope:\s*.+\s*$'
+if ($unreleasedText -notmatch $releaseAuditPattern) {
+  $errors.Add(('⭕`{0}` must end with a `Release audit` footer containing exactly two bullets: `PRs:` and `Scope:`.' -f $unreleasedFile)) | Out-Null
+}
 else {
-  $unreleasedText = Get-Content -Raw -LiteralPath $unreleasedFile
-  $releaseAuditPattern = '(?s)## Release audit\r?\n\r?\n- PRs:\s*.+\r?\n- Scope:\s*.+\s*$'
-  if ($unreleasedText -notmatch $releaseAuditPattern) {
-    $errors.Add(('⭕`{0}` must end with a `Release audit` footer containing exactly two bullets: `PRs:` and `Scope:`.' -f $unreleasedFile)) | Out-Null
+  $releaseAudit = Get-ReleaseAuditMetadata -Text $unreleasedText
+  if (-not $releaseAudit.HasParsablePrs) {
+    $errors.Add(('⭕`{0}` is missing a parseable `Release audit` `PRs:` line. Add a line like `- PRs: #95, #96`.' -f $unreleasedFile)) | Out-Null
   }
   else {
-    $releaseAudit = Get-ReleaseAuditMetadata -Text $unreleasedText
-    if (-not $releaseAudit.HasParsablePrs) {
-      $errors.Add(('⭕`{0}` is missing a parseable `Release audit` `PRs:` line. Add a line like `- PRs: #95, #96`.' -f $unreleasedFile)) | Out-Null
+    $listedPrs = $releaseAudit.Prs
+    if (-not @($listedPrs).Count) {
+      $errors.Add(('⭕`{0}` must list at least one PR number in `Release audit` `PRs:`. Add comma-separated entries like `#95, #96`.' -f $unreleasedFile)) | Out-Null
     }
-    else {
-      $listedPrs = $releaseAudit.Prs
-      if (-not @($listedPrs).Count) {
-        $errors.Add(('⭕`{0}` must list at least one PR number in `Release audit` `PRs:`. Add comma-separated entries like `#95, #96`.' -f $unreleasedFile)) | Out-Null
-      }
-      if ($currentPrNumber -and ($listedPrs -notcontains "#$currentPrNumber")) {
-        $errors.Add(('⭕ `{0}` must list the current PR number `#{1}` in `Release audit` `PRs:`. Add `#{1}` to that comma-separated list.' -f $unreleasedFile, $currentPrNumber)) | Out-Null
-      }
-      if ($currentPrNumber) {
-        try {
-          $baseUnreleasedText = Invoke-Git -Args @('show', "$BaseRef`:$unreleasedFile")
-          $baseReleaseAudit = Get-ReleaseAuditMetadata -Text $baseUnreleasedText
-          $currentPrToken = "#$currentPrNumber"
-          $prWasAddedToAudit = ($listedPrs -contains $currentPrToken) -and ($baseReleaseAudit.Prs -notcontains $currentPrToken)
-          if ($prWasAddedToAudit) {
-            if ($releaseAudit.Scope.Length -le $baseReleaseAudit.Scope.Length) {
-              $errors.Add(('⭕ `{0}` adds `#{1}` to `Release audit` `PRs:` but does not update the cumulative `Scope:` summary (line did not grow).' -f $unreleasedFile, $currentPrNumber)) | Out-Null
-            }
+    if ($currentPrNumber -and ($listedPrs -notcontains "#$currentPrNumber")) {
+      $errors.Add(('⭕ `{0}` must list the current PR number `#{1}` in `Release audit` `PRs:`. Add `#{1}` to that comma-separated list.' -f $unreleasedFile, $currentPrNumber)) | Out-Null
+    }
+    if ($currentPrNumber) {
+      try {
+        $baseUnreleasedText = Invoke-Git -Args @('show', "$BaseRef`:$unreleasedFile")
+        $baseReleaseAudit = Get-ReleaseAuditMetadata -Text $baseUnreleasedText
+        $currentPrToken = "#$currentPrNumber"
+        $prWasAddedToAudit = ($listedPrs -contains $currentPrToken) -and ($baseReleaseAudit.Prs -notcontains $currentPrToken)
+        if ($prWasAddedToAudit) {
+          if ($releaseAudit.Scope.Length -le $baseReleaseAudit.Scope.Length) {
+            $errors.Add(('⭕ `{0}` adds `#{1}` to `Release audit` `PRs:` but does not update the cumulative `Scope:` summary (line did not grow).' -f $unreleasedFile, $currentPrNumber)) | Out-Null
           }
         }
-        catch {
-          $warnings.Add('⚠️Unable to compare the base `Release audit` footer while validating the cumulative `Scope:` summary. Verify that `Scope:` reflects the full unreleased PR set.') | Out-Null
-        }
+      }
+      catch {
+        $warnings.Add('⚠️Unable to compare the base `Release audit` footer while validating the cumulative `Scope:` summary. Verify that `Scope:` reflects the full unreleased PR set.') | Out-Null
       }
     }
   }
