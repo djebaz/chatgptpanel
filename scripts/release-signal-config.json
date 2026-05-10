@@ -10,6 +10,7 @@
       ".prettierrc",
       "eslint.config.mjs",
       "package.json",
+      "package-lock.json",
       "AGENTS.md",
       "CLAUDE.md",
       "README.md"
