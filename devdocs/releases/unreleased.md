@@ -14,7 +14,7 @@
 
 - Standardized devDependencies: Node v24, Playwright v1.59, ESLint v10.
 - Normalized dependency graph and regenerated lockfile.
-- Initialized `scripts/release-signal-config.json` to enable data-driven release classification.
+- Initialized and maintained `scripts/release-signal-config.json` to enable data-driven release classification.
 
 ### Fixed
 
@@ -25,5 +25,5 @@
 
 ## Release audit
 
-- PRs: #1, #2, #3, #4, #5, #6, #7, #8
-- Scope: tooling; artifact-optimization; README, docsync and formatting; Removed obsolete API client logic and complex unit tests in favor of a clean, minimal wrapper; implement e2e tests playwright; fix e2e implementation and package config; add multi-open popup with side panel and tab options; add svg icons to popup buttons
+- PRs: #1, #2, #3, #4, #5, #6, #7, #8, #9
+- Scope: tooling; artifact-optimization; README, docsync and formatting; Removed obsolete API client logic and complex unit tests in favor of a clean, minimal wrapper; implement e2e tests playwright; fix e2e implementation and package config; add multi-open popup with side panel and tab options; add svg icons to popup buttons; sync release-signal-config with current repository structure

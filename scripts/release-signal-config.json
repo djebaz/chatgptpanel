@@ -11,6 +11,7 @@
       "eslint.config.mjs",
       "package.json",
       "package-lock.json",
+      "playwright.config.js",
       "AGENTS.md",
       "CLAUDE.md",
       "README.md"
@@ -18,6 +19,7 @@
     "pathPrefixes": [
       "scripts/",
       "devdocs/",
+      "tests/",
       ".github/"
     ]
   },
@@ -36,6 +38,16 @@
       "file": "src/popup.html",
       "reason": "Popup HTML structure change affects UI",
       "userFacing": true
+    },
+    {
+      "file": "src/sidepanel.html",
+      "reason": "Side panel HTML structure change affects UI",
+      "userFacing": true
+    },
+    {
+      "file": "src/rules.json",
+      "reason": "Network request rules affect extension behavior",
+      "userFacing": false
     },
     {
       "pathPrefixes": ["src/icons/"],
@@ -63,23 +75,12 @@
     {
       "file": "src/popup.js",
       "type": "token_any_vs_token_all",
-      "userFacingTokens": ["fetch", "gapi.", "document.", "sendMessage"],
+      "userFacingTokens": ["chrome.", "fetch", "gapi.", "document.", "sendMessage"],
       "helperOnlyTokens": ["console.log", "console.error"],
       "jsActionNames": [],
       "userFacingReason": "Popup logic change",
       "helperOnlyReason": "Cleanup or logging in popup script",
       "ambiguousReason": "Ambiguous popup script change",
-      "userFacing": true
-    },
-    {
-      "file": "src/style.css",
-      "type": "css_visible_vs_cleanup",
-      "userFacingSelectors": ["body", "#chat-container", "#chat-form", "#chat-input", "button"],
-      "userFacingProperties": ["font-", "width", "height", "border", "padding", "margin", "display", "flex", "background-color", "cursor"],
-      "cleanupPropertiesUsingCssVariable": [],
-      "userFacingReason": "Popup styling change",
-      "cleanupOnlyReason": "CSS variable cleanup",
-      "ambiguousReason": "Ambiguous styling change",
       "userFacing": true
     }
   ],
@@ -98,9 +99,10 @@
     "requiredReleaseSignalFiles": [
       "src/manifest.json",
       "src/popup.html",
+      "src/sidepanel.html",
+      "src/rules.json",
       "src/background.js",
       "src/popup.js",
-      "src/style.css",
       "src/_metadata/verified_contents.json"
     ],
     "requiredReleaseSignalPathPrefixes": [
