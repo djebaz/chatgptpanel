@@ -30,14 +30,14 @@ jobs:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
-          token: ${{ github.token }}
+          token: ${{ secrets.RELEASE_SIGNAL_PUSH_TOKEN || github.token }}
 
       - name: Checkout manual ref
         if: github.event_name != 'pull_request'
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          token: ${{ github.token }}
+          token: ${{ secrets.RELEASE_SIGNAL_PUSH_TOKEN || github.token }}
 
       - name: Resolve release-signal refs
         id: refs
@@ -49,12 +49,14 @@ jobs:
             echo "pr_number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
             echo "pr_title=${{ github.event.pull_request.title }}" >> "$GITHUB_OUTPUT"
             echo "can_push=${{ github.event.pull_request.head.repo.full_name == github.repository }}" >> "$GITHUB_OUTPUT"
+            echo "can_trigger_followup_checks=${{ secrets.RELEASE_SIGNAL_PUSH_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
           else
             echo "base_ref=${{ inputs.base_ref }}" >> "$GITHUB_OUTPUT"
             echo "head_ref=${{ inputs.head_ref }}" >> "$GITHUB_OUTPUT"
             echo "pr_number=" >> "$GITHUB_OUTPUT"
             echo "pr_title=" >> "$GITHUB_OUTPUT"
             echo "can_push=false" >> "$GITHUB_OUTPUT"
+            echo "can_trigger_followup_checks=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Evaluate release signal before auto-fix
@@ -249,7 +251,11 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
           if [ "${{ steps.autofix.outputs.release_audit_changed }}" = "true" ]; then
-            echo "> Auto-fix pushed an update to \`devdocs/releases/unreleased.md\`, then the validator ran again." >> "$GITHUB_STEP_SUMMARY"
+            if [ "${{ steps.refs.outputs.can_trigger_followup_checks }}" = "true" ]; then
+              echo "> Auto-fix pushed an update to \`devdocs/releases/unreleased.md\` using \`RELEASE_SIGNAL_PUSH_TOKEN\`; normal PR checks should run again on the pushed commit." >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "> Auto-fix pushed an update to \`devdocs/releases/unreleased.md\` using \`GITHUB_TOKEN\`. GitHub does not start a second workflow run from that token; this job re-ran release-signal validation locally instead." >> "$GITHUB_STEP_SUMMARY"
+            fi
           else
             echo "> No release-audit auto-fix was applied." >> "$GITHUB_STEP_SUMMARY"
           fi
@@ -327,8 +333,8 @@ jobs:
               core.info(`Explicit release label missing; auto-applied \`${recommended}\` from the release-signal result.`);
             }
 
-      - name: Comment release-signal failure on PR
-        if: always() && github.event_name == 'pull_request' && steps.release_signal.outputs.error_count != '0'
+      - name: Comment release-signal result on PR
+        if: always() && github.event_name == 'pull_request'
         uses: actions/github-script@v9
         with:
           script: |
@@ -340,37 +346,68 @@ jobs:
             const releaseReason = ${{ toJSON(steps.release_signal.outputs.release_reason) }};
             const warningsJoined = ${{ toJSON(steps.release_signal.outputs.warnings_joined) }};
             const errorsJoined = ${{ toJSON(steps.release_signal.outputs.errors_joined) }};
+            const autoFixApplied = `${{ steps.autofix.outputs.release_audit_changed }}` === 'true';
+            const followupChecksExpected = `${{ steps.refs.outputs.can_trigger_followup_checks }}` === 'true';
+            const errorCount = `${{ steps.release_signal.outputs.error_count }}` || 'unknown';
+            const recommendedLabel = releaseLikely === 'true' ? 'release:needed' : 'release:none';
+            const failed = errorCount !== '0';
             const warningItems = warningsJoined ? warningsJoined.split(' || ').filter(Boolean) : [];
             const errorItems = errorsJoined ? errorsJoined.split(' || ').filter(Boolean) : [];
             const marker = '<!-- release-signal-comment -->';
+            const actionsMetadataMarker = '<!-- release-signal-actions: ';
+            const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+
+            const alertType = failed ? '[!CAUTION]' : '[!TIP]';
+            const statusEmoji = failed ? '❌' : '✔️';
+            const statusText = failed ? 'FAIL' : 'PASS';
+            const releaseEmoji = releaseLikely === 'true' ? '🔥' : '❄️';
+            const docsEmoji = docsRequired === 'true' ? '📚' : '✅';
+            const labelEmoji = recommendedLabel === 'release:needed' ? '🚀' : '🏷️';
 
             const lines = [
               marker,
-              '## Release Signal',
-              '',
-              `- Release likely: \`${releaseLikely}\``,
-              `- Docs required: \`${docsRequired}\``,
-              `- Reason: ${releaseReason}`,
+              `> ${alertType}`,
+              `> ### ${statusEmoji} ${statusText}`,
+              '>',
+              `> - **Release likely**: \`${releaseLikely || 'unknown'}\` ${releaseEmoji}`,
+              `> - **Docs required**: \`${docsRequired || 'unknown'}\` ${docsEmoji}`,
+              `> - **Recommended label**: \`${recommendedLabel}\` ${labelEmoji}`,
+              `> - **Reason**: ${releaseReason || '(missing)'}`,
             ];
 
             if (errorItems.length) {
-              lines.push('', '### Errors');
+              lines.push('>', '> #### Errors');
               for (const item of errorItems) {
-                lines.push(`- ${item}`);
+                lines.push(`> - ${item}`);
               }
             }
 
             if (warningItems.length) {
-              lines.push('', '### Warnings');
+              lines.push('>', '> #### Warnings');
               for (const item of warningItems.slice(0, 3)) {
-                lines.push(`- ${item}`);
+                lines.push(`> - ${item}`);
               }
             }
 
-            lines.push(
-              '',
-              `See the failing check for full details: ${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`
-            );
+            const actions = [];
+            if (autoFixApplied) {
+              actions.push('Synced `devdocs/releases/unreleased.md` Release audit metadata 📜');
+              if (followupChecksExpected) {
+                actions.push('Auto-fix push used `RELEASE_SIGNAL_PUSH_TOKEN`; follow-up checks should rerun 🔁');
+              } else {
+                actions.push('Auto-fix push used `GITHUB_TOKEN`; GitHub suppresses recursive workflow runs, so release-signal was re-checked inside this job 🔁');
+              }
+            }
+
+            actions.push(`Workflow run: ${runUrl}`);
+
+            if (actions.length) {
+              lines.push('>', '> #### ☑️ Auto-Applied Actions');
+              for (const action of actions) {
+                lines.push(`> - ${action}`);
+              }
+              lines.push(`${actionsMetadataMarker}${JSON.stringify(actions)} -->`);
+            }
 
             const body = lines.join('\n');
             const { data: comments } = await github.rest.issues.listComments({
