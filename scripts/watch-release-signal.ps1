@@ -26,8 +26,33 @@ function Write-Status {
     [string]$Message
   )
 
-  $ts = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-  Write-Host "[$ts] $Message"
+  $ts = Get-Date -Format 'HH:mm:ss'
+  $icon = "  "
+  $color = "White"
+  
+  if ($Message -match 'success|PASSED|Synced|✓|Auto-apply committed|🚀') { 
+    $icon = "✅ "
+    $color = "Green"
+  }
+  elseif ($Message -match 'failure|error|FAILED|⭕') { 
+    $icon = "❌ "
+    $color = "Red"
+  }
+  elseif ($Message -match 'warning|⚠️') { 
+    $icon = "⚠️  "
+    $color = "Yellow"
+  }
+  elseif ($Message -match 'Trigger|Watching|Evaluating|ℹ️|Running update|📝|Polling|💤') { 
+    $icon = "ℹ️  "
+    $color = "Cyan"
+  }
+  elseif ($Message -match 'Evaluate') {
+    $icon = "🔍 "
+    $color = "Magenta"
+  }
+  
+  Write-Host "[$ts] " -NoNewline -ForegroundColor Gray
+  Write-Host "$icon$Message" -ForegroundColor $color
 }
 
 function Invoke-GhJson {
@@ -56,7 +81,7 @@ function Invoke-Git {
     throw "git $($Args -join ' ') failed ($exitCode): $($raw -join [Environment]::NewLine)"
   }
 
-  return $raw
+  return ($raw -join "`n")
 }
 
 function Set-CommitStatus {
@@ -124,7 +149,7 @@ function Get-ReleaseAuditFooter {
     [string]$Text
   )
 
-  $footerPattern = '(?s)^(?<prefix>.*?)(?:\r?\n)?## Release audit\r?\n\r?\n- PRs:\s*(?<prs>.+?)\r?\n- Scope:\s*(?<scope>.+?)\s*$'
+  $footerPattern = '(?s)^(?<prefix>.*?)(?:\r?\n)?## Release audit\r?\n\r?\n- PRs:\s*(?<prs>[^\r\n]+)\r?\n- Scope:\s*(?<scope>[^\r\n]*)'
   $match = [regex]::Match($Text, $footerPattern)
   if (-not $match.Success) {
     return $null
@@ -145,7 +170,8 @@ function Update-UnreleasedReleaseAudit {
     [Parameter(Mandatory = $true)]
     [int]$PrNumber,
     [Parameter(Mandatory = $true)]
-    [string]$PrTitle
+    [string]$PrTitle,
+    [string]$BaseRef = ""
   )
 
   if (-not (Test-Path -LiteralPath $Path)) {
@@ -162,15 +188,29 @@ function Update-UnreleasedReleaseAudit {
 
   $prToken = "#$PrNumber"
   $prAlreadyListed = $footer.PrTokens -contains $prToken
-  $currentBranchName = Get-CurrentBranchName
-  $sanitizedBranch = Get-SanitizedBranchName -BranchName $currentBranchName
-  $scopeAlreadySynced = $sanitizedBranch -and ($footer.ScopeLine -match [regex]::Escape($sanitizedBranch))
+  
+  # Determine if the scope line has already grown compared to the base branch
+  $scopeAlreadyGrown = $false
+  try {
+    $repoName = Get-RepositoryName -Repo $Repository
+    $baseBranch = if ($BaseRef) { $BaseRef } else { Get-DefaultBaseBranch -RepoName $repoName }
+    $baseRefPath = if ($BaseRef) { "$BaseRef`:$Path" } else { "origin/$baseBranch`:$Path" }
+    $baseUnreleasedText = Invoke-Git -Args @('show', $baseRefPath)
+    $baseFooter = Get-ReleaseAuditFooter -Text $baseUnreleasedText
+    if ($baseFooter -and $footer.ScopeLine.Length -gt $baseFooter.ScopeLine.Length) {
+      $scopeAlreadyGrown = $true
+      Write-Status "Scope already grown ($($footer.ScopeLine.Length) > $($baseFooter.ScopeLine.Length)). Skipping auto-append."
+    }
+  }
+  catch {
+    Write-Status "Unable to compare with base branch scope: $($_.Exception.Message)"
+  }
 
-  if ($prAlreadyListed -and $scopeAlreadySynced) {
+  if ($prAlreadyListed -and $scopeAlreadyGrown) {
     return $false
   }
 
-  $cleanPrLine = $footer.PrLine.Trim().TrimEnd(',')
+  $cleanPrLine = $footer.PrLine.Trim().TrimEnd(',').Trim()
   $newPrLine = if ($prAlreadyListed) {
     $footer.PrLine
   }
@@ -181,8 +221,22 @@ function Update-UnreleasedReleaseAudit {
     "$cleanPrLine, $prToken"
   }
 
+  $currentBranchName = Get-CurrentBranchName
+  $sanitizedBranch = Get-SanitizedBranchName -BranchName $currentBranchName
   $scopeSuffix = if ($sanitizedBranch) { $sanitizedBranch } else { $PrTitle.Trim() }
-  $newScopeLine = "$($footer.ScopeLine.TrimEnd('; ')); $scopeSuffix"
+
+  $newScopeLine = if ($scopeAlreadyGrown) {
+    $footer.ScopeLine
+  }
+  else {
+    $cleanScope = $footer.ScopeLine.Trim().TrimEnd(';').TrimEnd('.').Trim()
+    if ([string]::IsNullOrWhiteSpace($cleanScope)) {
+      $scopeSuffix
+    }
+    else {
+      "$cleanScope; $scopeSuffix"
+    }
+  }
   $newText = @(
     $footer.Prefix
     ''
@@ -246,7 +300,11 @@ function Invoke-AutoRemediation {
     [Parameter(Mandatory = $true)]
     [string]$PrTitle,
     [Parameter(Mandatory = $true)]
-    [hashtable]$Outputs
+    [hashtable]$Outputs,
+    [Parameter(Mandatory = $true)]
+    [string]$BaseSha,
+    [Parameter(Mandatory = $true)]
+    [string]$HeadSha
   )
 
   $actions = New-Object System.Collections.Generic.List[string]
@@ -279,15 +337,32 @@ function Invoke-AutoRemediation {
   }
 
   $errorsJoined = if ($Outputs.ContainsKey('errors_joined')) { $Outputs['errors_joined'] } else { '' }
+  
   $missingAuditPrError = $errorsJoined -and
     $errorsJoined.Contains('must list the current PR number') -and
     ($errorsJoined -match "#$PrNumber\b")
 
   $scopeMismatchError = $errorsJoined -and
-    $errorsJoined.Contains('but does not update the cumulative Scope: summary')
+    ($errorsJoined -match 'Scope:.*summary')
 
   if ($missingAuditPrError -or $scopeMismatchError) {
-    $result = Update-UnreleasedReleaseAudit -Path $UnreleasedPath -PrNumber $PrNumber -PrTitle $PrTitle
+    Write-Status "Audit remediation detected (MissingPR=$missingAuditPrError, ScopeMismatch=$scopeMismatchError). Waiting 10s for manual fix..."
+    Start-Sleep -Seconds 10
+    
+    # Re-fetch the PR state to see if it was fixed manually during the wait
+    $pr = Invoke-GhJson -Args @('api', "repos/$RepoName/pulls/$PrNumber")
+    # Re-evaluate locally to see if the file was fixed
+    $evaluation = Invoke-ReleaseSignalEvaluation -SourceId "re-check" -Trigger "post-grace-period re-check" -PrNumber $PrNumber -BaseSha $BaseSha -HeadSha $HeadSha -PrBody ([string]$pr.body) -Labels @($pr.labels)
+    
+    $reCheckErrors = if ($evaluation['Outputs'].ContainsKey('errors_joined')) { $evaluation['Outputs']['errors_joined'] } else { '' }
+    if ($reCheckErrors -notmatch 'Scope|summary|line did not grow|must list the current PR') {
+      Write-Status "✅ Audit fixed manually during grace period. Skipping auto-remediation."
+      return @()
+    }
+
+    Write-Status "ℹ️ Grace period over. Proceeding with auto-remediation..."
+    $baseRef = if ($evaluation['Outputs'].ContainsKey('base_ref')) { $evaluation['Outputs']['base_ref'] } else { "" }
+    $result = Update-UnreleasedReleaseAudit -Path $UnreleasedPath -PrNumber $PrNumber -PrTitle $PrTitle -BaseRef $baseRef
     if ($result) {
       if ($result -eq 'List' -or $result -eq 'Both') {
         $actions.Add("Synced PR #$PrNumber to `Release audit` list 📜") | Out-Null
@@ -361,7 +436,10 @@ function Get-SanitizedBranchName {
     return ''
   }
 
-  return (($BranchName -replace '^fix:|^feat:|^docs:|^chore:', '') -replace '[_-]', ' ').Trim()
+  $clean = ($BranchName -replace '^(fix|feat|docs|chore)[:\-]', '')
+  $clean = ($clean -replace '[^a-zA-Z0-9]', ' ').Trim()
+  while ($clean -match '  ') { $clean = $clean -replace '  ', ' ' }
+  return $clean
 }
 
 function Get-OutputMap {
@@ -427,7 +505,7 @@ function Invoke-ReleaseSignalEvaluation {
     Remove-Item -LiteralPath $summaryPath -Force
   }
 
-  Write-Status "Evaluating $SourceId for PR #$PrNumber ($BaseSha...$HeadSha)"
+  Write-Status "Evaluate $SourceId for PR #$PrNumber ($BaseSha...$HeadSha)"
   Write-Status "Trigger: $Trigger"
 
   $failed = $false
@@ -439,7 +517,27 @@ function Invoke-ReleaseSignalEvaluation {
     -SummaryPath $summaryPath 2>&1
   $checkExit = $LASTEXITCODE
   foreach ($line in @($checkOutput)) {
-    Write-Host $line
+    $lineStr = [string]$line
+    if ($lineStr -match 'release_signal_candidates=|release_signal_progress=|docs_required=') {
+      continue
+    }
+    if ($lineStr -match 'release_likely=(True|False)') {
+      $icon = if ($matches[1] -eq 'True') { "🚀" } else { "💤" }
+      Write-Status "$icon Release Likely: $($matches[1])"
+      continue
+    }
+    if ($lineStr -match 'release_reason=(.*)') {
+      Write-Status "📝 Reason: $($matches[1])"
+      continue
+    }
+    
+    # Clean up standard status lines from the check script
+    if ($lineStr -match '^[⭕⚠️ℹ️✅ ]') {
+      Write-Status $lineStr
+    }
+    else {
+      Write-Host $line
+    }
   }
   if ($checkExit -ne 0) {
     $failed = $true
@@ -452,20 +550,23 @@ function Invoke-ReleaseSignalEvaluation {
   $recommendedLabel = if ($outputs.ContainsKey('recommended_release_label')) { $outputs['recommended_release_label'] } else { '(none)' }
   $reason = if ($outputs.ContainsKey('release_reason')) { $outputs['release_reason'] } else { '(missing)' }
 
-  Write-Status "Result for PR #$PrNumber release_likely=$releaseLikely warnings=$warningCount errors=$errorCount recommended_label=$recommendedLabel"
-  Write-Host "Reason: $reason"
+  $summaryIcon = if ($releaseLikely -eq 'True') { "🚀" } else { "💤" }
+  Write-Status "$summaryIcon Result for PR #$PrNumber release_likely=$releaseLikely warnings=$warningCount errors=$errorCount recommended_label=$recommendedLabel"
+  if ($reason -and $reason -ne '(missing)') {
+    Write-Status "📝 Reason: $reason"
+  }
 
   if ($outputs.ContainsKey('warnings_joined') -and $outputs['warnings_joined']) {
     $items = @($outputs['warnings_joined'] -split ' \|\| ' | Where-Object { $_ })
     foreach ($item in $items) {
-      Write-Host "WARNING: $item"
+      Write-Status "⚠️ $item"
     }
   }
 
   if ($outputs.ContainsKey('errors_joined') -and $outputs['errors_joined']) {
     $items = @($outputs['errors_joined'] -split ' \|\| ' | Where-Object { $_ })
     foreach ($item in $items) {
-      Write-Host "ERROR: $item"
+      Write-Status "⭕ $item"
     }
   }
 
@@ -906,19 +1007,13 @@ while ($true) {
 
           if ($Apply) {
             try {
-              $remediationActions = Invoke-AutoRemediation -RepoName $repoName -PrNumber $prNumber -PrTitle ([string]$pr.title) -Outputs $evaluation['Outputs']
+              $remediationActions = Invoke-AutoRemediation -RepoName $repoName -PrNumber $prNumber -PrTitle ([string]$pr.title) -Outputs $evaluation['Outputs'] -BaseSha $baseSha -HeadSha $headSha
 
-              # Collect actions from unreleased.md audit sync
-              $auditActions = Invoke-UpdateUnreleasedAudit -PrNumber $prNumber -PrTitle ([string]$pr.title)
-              foreach ($action in @($auditActions)) {
-                if ($remediationActions -notcontains $action) {
-                  $remediationActions += $action
-                }
-              }
+              # Remediation already handled by Invoke-AutoRemediation
 
               # If we performed remediations that don't trigger a new commit (like PR body fixes),
               # we should re-evaluate to see if we now pass.
-              if ($evaluation['Failed'] -and $remediationActions.Count -gt 0) {
+              if ($evaluation['Failed'] -and @($remediationActions).Count -gt 0) {
                 # Fetch fresh PR metadata in case body changed
                 $pr = Invoke-GhJson -Args @('api', "repos/$repoName/pulls/$prNumber")
                 $evaluation = Invoke-ReleaseSignalEvaluation `
