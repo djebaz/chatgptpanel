@@ -4,7 +4,7 @@
 
 This PR refreshes and standardizes the Node.js development tooling for the repository.
 
-Testing configuration: Native Node.js test runner (`node --test`)
+Testing configuration: Jest
 
 Main goals:
 
@@ -18,26 +18,67 @@ Main goals:
 
 ### devDependencies
 
+- "@babel/core": "^7.25.8"
+- "@babel/preset-env": "^7.25.8"
+- "@playwright/test": "^1.59.1"
+- "@types/chrome": "^0.0.277"
+- "babel-jest": "^29.7.0"
+- "chrome-mock": "^0.0.9"
+- "cross-env": "^10.1.0"
 - "eslint": "^10.3.0"
-- "jsdom": "^24.1.0"
-- "prettier": "^3.2.5"
-- "prettier-plugin-powershell": "^2.0.11"
+- "jest": "^30.4.2"
+- "jest-environment-jsdom": "^30.4.1"
+- "prettier": "^3.3.3"
 
 ### dependencies
 
 - none
 
+## ESLint
 
+- Updated ESLint to the latest compatible version
+- Migrated/replaced the repo config with slint.config.mjs
+- Removed legacy ESLint config/ignore files
+- Configured ESLint as a low-noise, high-signal bug guard
+- Formatting remains handled by Prettier
 
-## Testing
+Enabled high-signal rules include:
 
-- Repo uses Native Node.js test runner (`node --test`)
-- No Jest tooling installed
+- 
+o-const-assign
+- 
+o-dupe-keys
+- 
+o-func-assign
+- 
+o-import-assign
+- 
+o-unreachable
+- 
+o-unsafe-finally
+- alid-typeof
+"@
+    }
+    else {
+        @"
+## ESLint
+
+- Updated ESLint package
+- Kept the existing ESLint configuration unchanged
+- Formatting remains handled by Prettier
+
+## Jest
+
+- Jest usage detected
+- Updated Jest tooling to v30
+- Split normal test runs from coverage runs
+- Coverage tooling no longer runs during standard unit tests
 
 ## Playwright
 
-- No Playwright/E2E tooling configured for this repo
-- Removed stale Playwright declarations/scripts if present
+- Playwright/E2E usage detected
+- Normalized Playwright tooling
+- Removed obsolete chromium npm package if present
 
 ## Cleanup performed
 
@@ -49,15 +90,11 @@ Main goals:
 
 ## Validation
 
-- `npm run format`
-- `npm run lint`
-- `npm test`
-- `npm audit`
+- Validation was not run automatically
 
 ## Audit
 
-- 
-pm audit completed successfully
+- npm audit completed successfully
 - no known vulnerabilities remaining after refresh
 
 ## Notes
