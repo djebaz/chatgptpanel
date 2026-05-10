@@ -6,13 +6,13 @@ on:
   workflow_dispatch:
     inputs:
       base_ref:
-        description: "Base ref (SHA or branch) for release signal evaluation"
+        description: 'Base ref (SHA or branch) for release signal evaluation'
         required: true
-        default: "main"
+        default: 'main'
       head_ref:
-        description: "Head ref (SHA or branch) for release signal evaluation"
+        description: 'Head ref (SHA or branch) for release signal evaluation'
         required: true
-        default: "HEAD"
+        default: 'HEAD'
 
 permissions:
   contents: read
