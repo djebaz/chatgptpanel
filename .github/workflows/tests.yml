@@ -11,18 +11,15 @@ on:
 permissions:
   contents: read
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
-
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '24'
           cache: 'npm'
@@ -76,7 +73,6 @@ jobs:
           set -o pipefail
           # Force TAP reporter for stable parsing.
           NODE_TEST_REPORTER=tap npm run test:unit 2>&1 | tee unit-results.txt
-          cat unit-results.txt >> test-results.txt
 
       - name: Run E2E Tests
         id: e2e
@@ -84,7 +80,6 @@ jobs:
         run: |
           set -o pipefail
           xvfb-run npm run test:e2e 2>&1 | tee e2e-results.txt
-          cat e2e-results.txt >> test-results.txt
 
       - name: Add summary to Job Summary
         if: always()
@@ -94,6 +89,12 @@ jobs:
 
           format_status=${format_status:-skipped}
           lint_status=${lint_status:-skipped}
+
+          format_exit="${{ steps.format.outputs.exit_code }}"
+          lint_exit="${{ steps.lint.outputs.exit_code }}"
+
+          format_exit=${format_exit:-n/a}
+          lint_exit=${lint_exit:-n/a}
 
           format_icon="✅"
           format_label="Passed"
@@ -143,8 +144,8 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Check | Status | Exit code | Notes |" >> "$GITHUB_STEP_SUMMARY"
           echo "| :--- | :---: | :---: | :--- |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Prettier | $format_icon $format_label | ${{ steps.format.outputs.exit_code || 'n/a' }} | Runs \`npm run format\` only; does not rewrite files. |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| ESLint | $lint_icon $lint_label | ${{ steps.lint.outputs.exit_code || 'n/a' }} | Advisory lint signal; does not block the job. |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Prettier | $format_icon $format_label | $format_exit | Runs \`npm run format\` only; does not rewrite files. |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| ESLint | $lint_icon $lint_label | $lint_exit | Advisory lint signal; does not block the job. |" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
           echo "#### Required test suites" >> "$GITHUB_STEP_SUMMARY"
