@@ -74,7 +74,7 @@ if (-not $pr) {
 
 Write-Host "[INFO] Using PR #$pr for unreleased.md audit"
 $content = Get-Content devdocs/releases/unreleased.md
-$sanitizedBranch = ($branch -replace '^fix:|^feat:|^docs:|^chore:', '')
+$sanitizedBranch = ($branch -replace '^(fix|feat|docs|chore)[:\-]', '')
 $sanitizedBranch = ($sanitizedBranch -replace '[^a-zA-Z0-9]', ' ').Trim()
 while ($sanitizedBranch -match '  ') { $sanitizedBranch = $sanitizedBranch -replace '  ', ' ' }
 

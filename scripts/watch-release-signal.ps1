@@ -26,8 +26,29 @@ function Write-Status {
     [string]$Message
   )
 
-  $ts = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-  Write-Host "[$ts] $Message"
+  $ts = Get-Date -Format 'HH:mm:ss'
+  $icon = "  "
+  $color = "White"
+  
+  if ($Message -match 'success|PASSED|Synced|✓|Auto-apply committed|🚀') { 
+    $icon = "✅ "
+    $color = "Green"
+  }
+  elseif ($Message -match 'failure|error|FAILED|⭕') { 
+    $icon = "❌ "
+    $color = "Red"
+  }
+  elseif ($Message -match 'warning|⚠️') { 
+    $icon = "⚠️  "
+    $color = "Yellow"
+  }
+  elseif ($Message -match 'Trigger|Watching|Evaluating|ℹ️|Running update|📝|Polling|💤') { 
+    $icon = "ℹ️  "
+    $color = "Cyan"
+  }
+  
+  Write-Host "[$ts] " -NoNewline -ForegroundColor Gray
+  Write-Host "$icon$Message" -ForegroundColor $color
 }
 
 function Invoke-GhJson {
@@ -388,7 +409,7 @@ function Get-SanitizedBranchName {
     return ''
   }
 
-  $clean = ($BranchName -replace '^fix:|^feat:|^docs:|^chore:', '')
+  $clean = ($BranchName -replace '^(fix|feat|docs|chore)[:\-]', '')
   $clean = ($clean -replace '[^a-zA-Z0-9]', ' ').Trim()
   while ($clean -match '  ') { $clean = $clean -replace '  ', ' ' }
   return $clean
@@ -469,7 +490,27 @@ function Invoke-ReleaseSignalEvaluation {
     -SummaryPath $summaryPath 2>&1
   $checkExit = $LASTEXITCODE
   foreach ($line in @($checkOutput)) {
-    Write-Host $line
+    $lineStr = [string]$line
+    if ($lineStr -match 'release_signal_candidates=|release_signal_progress=|docs_required=') {
+      continue
+    }
+    if ($lineStr -match 'release_likely=(True|False)') {
+      $icon = if ($matches[1] -eq 'True') { "🚀" } else { "💤" }
+      Write-Status "$icon Release Likely: $($matches[1])"
+      continue
+    }
+    if ($lineStr -match 'release_reason=(.*)') {
+      Write-Status "📝 Reason: $($matches[1])"
+      continue
+    }
+    
+    # Clean up standard status lines from the check script
+    if ($lineStr -match '^[⭕⚠️ℹ️✅ ]') {
+      Write-Status $lineStr
+    }
+    else {
+      Write-Host $line
+    }
   }
   if ($checkExit -ne 0) {
     $failed = $true
@@ -482,20 +523,23 @@ function Invoke-ReleaseSignalEvaluation {
   $recommendedLabel = if ($outputs.ContainsKey('recommended_release_label')) { $outputs['recommended_release_label'] } else { '(none)' }
   $reason = if ($outputs.ContainsKey('release_reason')) { $outputs['release_reason'] } else { '(missing)' }
 
-  Write-Status "Result for PR #$PrNumber release_likely=$releaseLikely warnings=$warningCount errors=$errorCount recommended_label=$recommendedLabel"
-  Write-Host "Reason: $reason"
+  $summaryIcon = if ($releaseLikely -eq 'True') { "🚀" } else { "💤" }
+  Write-Status "$summaryIcon Result for PR #$PrNumber release_likely=$releaseLikely warnings=$warningCount errors=$errorCount recommended_label=$recommendedLabel"
+  if ($reason -and $reason -ne '(missing)') {
+    Write-Status "📝 Reason: $reason"
+  }
 
   if ($outputs.ContainsKey('warnings_joined') -and $outputs['warnings_joined']) {
     $items = @($outputs['warnings_joined'] -split ' \|\| ' | Where-Object { $_ })
     foreach ($item in $items) {
-      Write-Host "WARNING: $item"
+      Write-Status "⚠️ $item"
     }
   }
 
   if ($outputs.ContainsKey('errors_joined') -and $outputs['errors_joined']) {
     $items = @($outputs['errors_joined'] -split ' \|\| ' | Where-Object { $_ })
     foreach ($item in $items) {
-      Write-Host "ERROR: $item"
+      Write-Status "⭕ $item"
     }
   }
 
@@ -938,13 +982,7 @@ while ($true) {
             try {
               $remediationActions = Invoke-AutoRemediation -RepoName $repoName -PrNumber $prNumber -PrTitle ([string]$pr.title) -Outputs $evaluation['Outputs']
 
-              # Collect actions from unreleased.md audit sync
-              $auditActions = Invoke-UpdateUnreleasedAudit -PrNumber $prNumber -PrTitle ([string]$pr.title)
-              foreach ($action in @($auditActions)) {
-                if ($remediationActions -notcontains $action) {
-                  $remediationActions += $action
-                }
-              }
+              # Remediation already handled by Invoke-AutoRemediation
 
               # If we performed remediations that don't trigger a new commit (like PR body fixes),
               # we should re-evaluate to see if we now pass.
