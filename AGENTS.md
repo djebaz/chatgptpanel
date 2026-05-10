@@ -1,6 +1,6 @@
 # AGENTS.md — AI Development Guide (v2.1.1)
 
-This guide equips AI agents with the architecture, patterns, and rules needed to safely extend and maintain Auto Clicker Pro v2.0.0. It supersedes prior v1.4/v1.5/v1.8 guidance with the multi‑tab model, countdown ownership, global progress tracking, and granular job cancellation controls.
+This guide equips AI agents with the architecture, patterns, and rules needed to safely extend and maintain chatgptpanel. It supersedes prior v1.4/v1.5/v1.8 guidance with the multi‑tab model, countdown ownership, global progress tracking, and granular job cancellation controls.
 
 - Environment: Windows + PowerShell (pwsh 7+). Use Get-ChildItem, Get-Content, Set-Content, Select-String. All `.ps1` scripts now include `#Requires -PSEdition Core` and runtime checks to enforce this environment. See HOWTO.md at repo root. Prefer the harness apply_patch tool for edits.
 - Encoding & Line Endings: All source files (JS/JSON/CSS/HTML/MD/PS1) are UTF-8 without BOM with LF line endings. Enforce via `.editorconfig` (`end_of_line = lf`), `.gitattributes` (`* text=auto eol=lf`), and `.prettierrc` (`endOfLine: "lf"`). Windows Git config: `core.autocrlf=false` and `core.eol=lf`. Format commands: `npm run format:write` (code-focused) and `npm run format:all` (comprehensive with scripts, workflows, devdocs).
