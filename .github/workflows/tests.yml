@@ -28,25 +28,50 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
 
       - name: Run Node.js tests
         id: run_tests
         run: |
-          npm test | tee test-results.txt
+          set -o pipefail
+          xvfb-run npm test | tee test-results.txt
 
       - name: Add summary to Job Summary
         if: always()
         run: |
-          echo "### 🧪 Node.js Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "### 🧪 Test Results Summary" >> $GITHUB_STEP_SUMMARY
 
-          # Simple status table
-          echo "| Metric | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "| :--- | :---: |" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.run_tests.outcome }}" == "failure" ]; then
-            echo "| Tests | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+          if [ -f test-results.txt ]; then
+            # Parse Unit Tests (TAP)
+            UNIT_PASS=$(grep "# pass" test-results.txt | tail -1 | awk '{print $3}' | tr -d '\r' || echo "0")
+            UNIT_FAIL=$(grep "# fail" test-results.txt | tail -1 | awk '{print $3}' | tr -d '\r' || echo "0")
+            UNIT_PASS=${UNIT_PASS:-0}
+            UNIT_FAIL=${UNIT_FAIL:-0}
+
+            # Parse E2E Tests (Playwright)
+            E2E_PASS=$(grep -E "[0-9]+ passed" test-results.txt | tail -1 | awk '{print $1}' | tr -d '\r' || echo "0")
+            E2E_FAIL=$(grep -E "[0-9]+ failed" test-results.txt | tail -1 | awk '{print $1}' | tr -d '\r' || echo "0")
+            E2E_PASS=${E2E_PASS:-0}
+            E2E_FAIL=${E2E_FAIL:-0}
+
+            echo "| Test Suite | Passed | Failed | Status |" >> $GITHUB_STEP_SUMMARY
+            echo "| :--- | :---: | :---: | :---: |" >> $GITHUB_STEP_SUMMARY
+
+            if [ "$UNIT_FAIL" -eq "0" ] && [ "$UNIT_PASS" -gt "0" ]; then
+              echo "| Unit Tests | $UNIT_PASS | $UNIT_FAIL | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| Unit Tests | $UNIT_PASS | $UNIT_FAIL | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+            fi
+
+            if [ "$E2E_FAIL" -eq "0" ] && [ "$E2E_PASS" -gt "0" ]; then
+              echo "| E2E Tests | $E2E_PASS | $E2E_FAIL | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| E2E Tests | $E2E_PASS | $E2E_FAIL | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+            fi
           else
-            echo "| Tests | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+            echo "❌ No test-results.txt found." >> $GITHUB_STEP_SUMMARY
           fi
 
           echo "" >> $GITHUB_STEP_SUMMARY
