@@ -9,9 +9,8 @@ This guide equips AI agents with the architecture, patterns, and rules needed to
   - Text-based logs and test results are captured in **Job Summaries** (using Markdown tables and ✅/❌ icons for high-level visibility) instead of file artifacts.
   - Binary artifacts (if any) are only uploaded on failure (`if: failure()`), with `retention-days: 1` and `continue-on-error: true`.
   - An **Artifact Sweeper** cron job aggressively purges all artifacts older than 30 minutes.
-- Coding: Keep changes minimal, follow existing style, avoid POSIX tools. Content owns countdown timing; background mirrors state and renders badges.
-- Testing: Core logic in `src/` should be covered by unit tests in `tests/unit/`.
+- Coding: Keep changes minimal. The extension is a simple wrapper; logic lives in `background.js` and uses `chrome.action.onClicked` to open the standalone popup. Use `manifest.json` for all configuration.
+- Testing: Core configurations should be covered by unit tests in `tests/unit/` (e.g., manifest validation).
   - Use Node.js native test runner: `npm run test:unit`.
-  - Use `jsdom` for mocking DOM in `popup.js` tests.
-  - Mock `chrome` APIs and `fetch` as needed.
+  - Mock `chrome` APIs as needed.
 

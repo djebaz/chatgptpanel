@@ -1,15 +1,13 @@
-export function setupBackground() {
-  chrome.action.onClicked.addListener(tab => {
-    chrome.windows.create({
-      url: 'https://chat.openai.com',
-      type: 'popup',
-      width: 400,
-      height: 600,
-    });
-  });
-}
+/**
+ * ChatGPT Panel - Background Script
+ * Opens ChatGPT in a standalone popup window when the extension icon is clicked.
+ */
 
-// Only run if we are in a browser extension context
-if (typeof chrome !== 'undefined' && chrome.action && chrome.action.onClicked) {
-  setupBackground();
-}
+chrome.action.onClicked.addListener(() => {
+  chrome.windows.create({
+    url: 'https://chatgpt.com',
+    type: 'popup',
+    width: 480,
+    height: 700
+  });
+});
