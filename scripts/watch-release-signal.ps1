@@ -29,12 +29,12 @@ function Write-Status {
   $ts = Get-Date -Format 'HH:mm:ss'
   $icon = "  "
   $color = "White"
-  
-  if ($Message -match 'success|PASSED|Synced|✓|Auto-apply committed|🚀') { 
+
+  if ($Message -match 'success|PASSED|Synced|✓|Auto-apply committed|🚀') {
     $icon = "✅ "
     $color = "Green"
   }
-  elseif ($Message -match '\berror\b|\bfailure\b|\bFAILED\b|⭕') { 
+  elseif ($Message -match '\berror\b|\bfailure\b|\bFAILED\b|⭕') {
     if ($Message -match 'errors=0') {
       # This is a summary line with zero errors, treat as neutral/info
       $icon = "✅ "
@@ -44,7 +44,7 @@ function Write-Status {
       $color = "Red"
     }
   }
-  elseif ($Message -match '\bwarning\b|⚠️') { 
+  elseif ($Message -match '\bwarning\b|⚠️') {
     if ($Message -match 'warnings=0') {
       # This is a summary line with zero warnings, treat as neutral/info
       $icon = "✅ "
@@ -54,7 +54,7 @@ function Write-Status {
       $color = "Yellow"
     }
   }
-  elseif ($Message -match 'Trigger|Watching|Evaluating|ℹ️|Running update|📝|Polling') { 
+  elseif ($Message -match 'Trigger|Watching|Evaluating|ℹ️|Running update|📝|Polling') {
     $icon = "ℹ️  "
     $color = "Cyan"
   }
@@ -62,7 +62,7 @@ function Write-Status {
     $icon = "🔍 "
     $color = "Magenta"
   }
-  
+
   Write-Host "[$ts] " -NoNewline -ForegroundColor Gray
   Write-Host "$icon$Message" -ForegroundColor $color
 }
@@ -202,7 +202,7 @@ function Update-UnreleasedReleaseAudit {
 
   $prToken = "#$PrNumber"
   $prAlreadyListed = $footer.PrTokens -contains $prToken
-  
+
   # Determine if the scope line has already grown compared to the base branch
   $scopeAlreadyGrown = $false
   try {
@@ -351,7 +351,7 @@ function Invoke-AutoRemediation {
   }
 
   $errorsJoined = if ($Outputs.ContainsKey('errors_joined')) { $Outputs['errors_joined'] } else { '' }
-  
+
   $missingAuditPrError = $errorsJoined -and
     $errorsJoined.Contains('must list the current PR number') -and
     ($errorsJoined -match "#$PrNumber\b")
@@ -362,12 +362,12 @@ function Invoke-AutoRemediation {
   if ($missingAuditPrError -or $scopeMismatchError) {
     Write-Status "Audit remediation detected (MissingPR=$missingAuditPrError, ScopeMismatch=$scopeMismatchError). Waiting 10s for manual fix..."
     Start-Sleep -Seconds 10
-    
+
     # Re-fetch the PR state to see if it was fixed manually during the wait
     $pr = Invoke-GhJson -Args @('api', "repos/$RepoName/pulls/$PrNumber")
     # Re-evaluate locally to see if the file was fixed
     $evaluation = Invoke-ReleaseSignalEvaluation -SourceId "re-check" -Trigger "post-grace-period re-check" -PrNumber $PrNumber -BaseSha $BaseSha -HeadSha $HeadSha -PrBody ([string]$pr.body) -Labels @($pr.labels)
-    
+
     $reCheckErrors = if ($evaluation['Outputs'].ContainsKey('errors_joined')) { $evaluation['Outputs']['errors_joined'] } else { '' }
     if ($reCheckErrors -notmatch 'Scope|summary|line did not grow|must list the current PR') {
       Write-Status "✅ Audit fixed manually during grace period. Skipping auto-remediation."
@@ -545,7 +545,7 @@ function Invoke-ReleaseSignalEvaluation {
       Write-Status "📝 Reason: $($matches[1])"
       continue
     }
-    
+
     # Clean up standard status lines from the check script
     if ($lineStr -match '^[⭕⚠️ℹ️✅ ]') {
       Write-Status $lineStr
@@ -919,6 +919,7 @@ if ($Apply) {
   Write-Status "Auto-apply mode enabled (labels + release audit sync at '$UnreleasedPath')."
 }
 Write-Host 'WATCHER_READY'
+$global:HasStartedPolling = $false
 
 while ($true) {
   try {

@@ -19,8 +19,9 @@
 - Pruned stale/extraneous packages.
 - Minimize GitHub Actions artifact storage usage by transitioning logs to Job Summaries.
 - Removed obsolete API client logic and complex unit tests in favor of a clean, minimal wrapper.
+- Fixed E2E test suite: corrected stale `package-config.json` allowlist, `run-e2e.ps1` dist path, and rewrote spec to match the minimal wrapper architecture.
 
 ## Release audit
 
-- PRs: #1, #2, #3, #4, #5
-- Scope: tooling; artifact-optimization; README, docsync and formatting; Removed obsolete API client logic and complex unit tests in favor of a clean, minimal wrapper; implement e2e tests playwright 2959311289169985160
+- PRs: #1, #2, #3, #4, #5, #6
+- Scope: tooling; artifact-optimization; README, docsync and formatting; Removed obsolete API client logic and complex unit tests in favor of a clean, minimal wrapper; implement e2e tests playwright; fix e2e implementation and package config
