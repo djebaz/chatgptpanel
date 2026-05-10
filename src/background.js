@@ -1,13 +1,5 @@
 /**
  * ChatGPT Panel - Background Script
- * Opens ChatGPT in a standalone popup window when the extension icon is clicked.
+ * Background tasks, service worker stays alive if needed.
  */
-
-chrome.action.onClicked.addListener(() => {
-  chrome.windows.create({
-    url: 'https://chatgpt.com',
-    type: 'popup',
-    width: 480,
-    height: 700
-  });
-});
+// The onClicked action is now handled by popup.js when the default_popup opens.

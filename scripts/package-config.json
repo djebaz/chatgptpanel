@@ -8,7 +8,11 @@
     "manifest.json",
     "background.js",
     "icons",
-    "lib"
+    "lib",
+    "popup.html",
+    "popup.js",
+    "sidepanel.html",
+    "rules.json"
   ],
   "excludeFolders": [
     "tests",
