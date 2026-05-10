@@ -74,45 +74,49 @@ if (-not $pr) {
 
 Write-Host "[INFO] Using PR #$pr for unreleased.md audit"
 $content = Get-Content devdocs/releases/unreleased.md
-for ($i = 0; $i -lt $content.Length; $i++) {
-    # Match PRs line even if indented or with leading/trailing whitespace
-    if ($content[$i] -match '^\s*-?\s*PRs:\s*(.*)$') {
-        Write-Host "[DEBUG] Original PRs line: $($content[$i])"
-        $prs = ($matches[1] -split ', *' | ForEach-Object { $_.Trim() }) | Where-Object { $_ }
-        Write-Host "[DEBUG] PRs array before: $($prs -join ', ')"
-        if ($prs -notcontains ("#$pr")) { $prs += "#$pr" }
-        $prs = $prs | Sort-Object -Unique
-        Write-Host "[DEBUG] PRs array after: $($prs -join ', ')"
-        $content[$i] = ($content[$i] -replace '^\s*-?\s*PRs:\s*.*$', ('- PRs: ' + ($prs -join ', ')))
-        Write-Host "[DEBUG] Updated PRs line: $($content[$i])"
-    }
-}
-# --- Append sanitized branch name to Scope line ---
-$branch = Invoke-NativeChecked -CommandName 'git' -Args @('rev-parse', '--abbrev-ref', 'HEAD')
-if (-not $branch) {
-    Write-Warning "Unable to re-resolve current branch for Scope update. Skipping unreleased.md audit update."
-    return
-}
-$sanitizedBranch = $branch -replace '[_-]', ' '
+$sanitizedBranch = ($branch -replace '^fix:|^feat:|^docs:|^chore:', '')
+$sanitizedBranch = ($sanitizedBranch -replace '[^a-zA-Z0-9]', ' ').Trim()
+while ($sanitizedBranch -match '  ') { $sanitizedBranch = $sanitizedBranch -replace '  ', ' ' }
+
 Write-Host "[DEBUG] Branch: $branch, Sanitized: $sanitizedBranch"
 for ($i = 0; $i -lt $content.Length; $i++) {
+    if ($content[$i] -match '^\s*-?\s*PRs:\s*(.*)$') {
+        Write-Host "[DEBUG] Original PRs line: $($content[$i])"
+        $prs = ($matches[1] -split ', *' | ForEach-Object { $_.Trim().TrimEnd(',') } | Where-Object { $_ })
+        if ($prs -notcontains ("#$pr")) { $prs += "#$pr" }
+        $prs = $prs | Sort-Object -Unique
+        $content[$i] = ('- PRs: ' + ($prs -join ', '))
+    }
+    
     if ($content[$i] -match '^-?\s*Scope:\s*(.*)$') {
         $scope = $matches[1]
-        # Only append if not already present
-        if ($scope -notmatch [regex]::Escape($sanitizedBranch)) {
-            if ($scope.Trim().EndsWith(';')) {
-                $content[$i] = ($content[$i] + ' ' + $sanitizedBranch)
+        
+        # Determine if the scope line has already grown compared to the base branch
+        $baseBranch = 'origin/main'
+        $scopeAlreadyGrown = $false
+        try {
+            $baseContent = Invoke-NativeChecked -CommandName 'git' -Args @('show', "${baseBranch}:devdocs/releases/unreleased.md")
+            if ($baseContent -match '^-?\s*Scope:\s*(.*)$') {
+                $baseScope = $matches[1]
+                if ($scope.Length -gt $baseScope.Length) {
+                    $scopeAlreadyGrown = $true
+                }
+            }
+        } catch { }
+
+        if (-not $scopeAlreadyGrown) {
+            $cleanScope = $scope.Trim().TrimEnd(';').TrimEnd('.').Trim()
+            if ([string]::IsNullOrWhiteSpace($cleanScope)) {
+                $content[$i] = ('- Scope: ' + $sanitizedBranch)
             }
             else {
-                $content[$i] = ($content[$i] + '; ' + $sanitizedBranch)
+                $content[$i] = ('- Scope: ' + $cleanScope + '; ' + $sanitizedBranch)
             }
             Write-Host "[DEBUG] Updated Scope line: $($content[$i])"
         }
-        else {
-            Write-Host "[DEBUG] Scope line already contains branch name."
-        }
     }
 }
+
 $hasChanges = $false
 $oldContent = if (Test-Path -LiteralPath '.\devdocs\releases\unreleased.md') {
     Get-Content -Raw -LiteralPath '.\devdocs\releases\unreleased.md'

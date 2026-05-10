@@ -162,15 +162,28 @@ function Update-UnreleasedReleaseAudit {
 
   $prToken = "#$PrNumber"
   $prAlreadyListed = $footer.PrTokens -contains $prToken
-  $currentBranchName = Get-CurrentBranchName
-  $sanitizedBranch = Get-SanitizedBranchName -BranchName $currentBranchName
-  $scopeAlreadySynced = $sanitizedBranch -and ($footer.ScopeLine -match [regex]::Escape($sanitizedBranch))
+  
+  # Determine if the scope line has already grown compared to the base branch
+  $scopeAlreadyGrown = $false
+  try {
+    $repoName = Get-RepositoryName -Repo $Repository
+    $baseBranch = Get-DefaultBaseBranch -RepoName $repoName
+    $baseUnreleasedText = Invoke-Git -Args @('show', "origin/$baseBranch`:$Path")
+    $baseFooter = Get-ReleaseAuditFooter -Text $baseUnreleasedText
+    if ($baseFooter -and $footer.ScopeLine.Length -gt $baseFooter.ScopeLine.Length) {
+      $scopeAlreadyGrown = $true
+      Write-Status "Scope already grown ($($footer.ScopeLine.Length) > $($baseFooter.ScopeLine.Length)). Skipping auto-append."
+    }
+  }
+  catch {
+    Write-Status "Unable to compare with base branch scope: $($_.Exception.Message)"
+  }
 
-  if ($prAlreadyListed -and $scopeAlreadySynced) {
+  if ($prAlreadyListed -and $scopeAlreadyGrown) {
     return $false
   }
 
-  $cleanPrLine = $footer.PrLine.Trim().TrimEnd(',')
+  $cleanPrLine = $footer.PrLine.Trim().TrimEnd(',').Trim()
   $newPrLine = if ($prAlreadyListed) {
     $footer.PrLine
   }
@@ -181,8 +194,22 @@ function Update-UnreleasedReleaseAudit {
     "$cleanPrLine, $prToken"
   }
 
+  $currentBranchName = Get-CurrentBranchName
+  $sanitizedBranch = Get-SanitizedBranchName -BranchName $currentBranchName
   $scopeSuffix = if ($sanitizedBranch) { $sanitizedBranch } else { $PrTitle.Trim() }
-  $newScopeLine = "$($footer.ScopeLine.TrimEnd('; ')); $scopeSuffix"
+
+  $newScopeLine = if ($scopeAlreadyGrown) {
+    $footer.ScopeLine
+  }
+  else {
+    $cleanScope = $footer.ScopeLine.Trim().TrimEnd(';').TrimEnd('.').Trim()
+    if ([string]::IsNullOrWhiteSpace($cleanScope)) {
+      $scopeSuffix
+    }
+    else {
+      "$cleanScope; $scopeSuffix"
+    }
+  }
   $newText = @(
     $footer.Prefix
     ''
@@ -361,7 +388,10 @@ function Get-SanitizedBranchName {
     return ''
   }
 
-  return (($BranchName -replace '^fix:|^feat:|^docs:|^chore:', '') -replace '[_-]', ' ').Trim()
+  $clean = ($BranchName -replace '^fix:|^feat:|^docs:|^chore:', '')
+  $clean = ($clean -replace '[^a-zA-Z0-9]', ' ').Trim()
+  while ($clean -match '  ') { $clean = $clean -replace '  ', ' ' }
+  return $clean
 }
 
 function Get-OutputMap {
