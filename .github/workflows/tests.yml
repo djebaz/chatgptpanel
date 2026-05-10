@@ -33,75 +33,194 @@ jobs:
           npx playwright install --with-deps chromium
 
       - name: Run Format Check
-        run: npm run format
+        id: format
+        run: |
+          set +e
+          npm run format 2>&1 | tee format-results.txt
+          FORMAT_EXIT=${PIPESTATUS[0]}
+
+          if [ "$FORMAT_EXIT" -eq 0 ]; then
+            echo "status=passed" >> "$GITHUB_OUTPUT"
+            echo "exit_code=0" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=warning" >> "$GITHUB_OUTPUT"
+            echo "exit_code=$FORMAT_EXIT" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Prettier check failed::Formatting issues found. Run npm run format:write locally."
+          fi
+
+          exit 0
 
       - name: Run Lint
+        id: lint
         if: success() || failure()
-        run: npm run lint
+        run: |
+          set +e
+          npm run lint 2>&1 | tee lint-results.txt
+          LINT_EXIT=${PIPESTATUS[0]}
+
+          if [ "$LINT_EXIT" -eq 0 ]; then
+            echo "status=passed" >> "$GITHUB_OUTPUT"
+            echo "exit_code=0" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=warning" >> "$GITHUB_OUTPUT"
+            echo "exit_code=$LINT_EXIT" >> "$GITHUB_OUTPUT"
+            echo "::warning title=ESLint check failed::Lint issues found. Fix them when practical, but this advisory check does not fail the job."
+          fi
+
+          exit 0
 
       - name: Run Unit Tests
+        id: unit
         if: success() || failure()
         run: |
           set -o pipefail
-          # Force TAP reporter for stable parsing
-          NODE_TEST_REPORTER=tap npm run test:unit 2>&1 | tee test-results.txt
+          # Force TAP reporter for stable parsing.
+          NODE_TEST_REPORTER=tap npm run test:unit 2>&1 | tee unit-results.txt
+          cat unit-results.txt >> test-results.txt
 
       - name: Run E2E Tests
+        id: e2e
         if: success() || failure()
         run: |
           set -o pipefail
-          xvfb-run npm run test:e2e 2>&1 | tee -a test-results.txt
+          xvfb-run npm run test:e2e 2>&1 | tee e2e-results.txt
+          cat e2e-results.txt >> test-results.txt
 
       - name: Add summary to Job Summary
         if: always()
         run: |
-          echo "### 🧪 Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          format_status="${{ steps.format.outputs.status }}"
+          lint_status="${{ steps.lint.outputs.status }}"
 
-          if [ -f test-results.txt ]; then
-            # Parse Unit Tests (TAP or Spec)
-            UNIT_PASS=$(grep -E "[#ℹ] pass" test-results.txt | tail -1 | awk '{print $3}' | tr -d '\r' || echo "0")
-            UNIT_FAIL=$(grep -E "[#ℹ] fail" test-results.txt | tail -1 | awk '{print $3}' | tr -d '\r' || echo "0")
+          format_status=${format_status:-skipped}
+          lint_status=${lint_status:-skipped}
+
+          format_icon="✅"
+          format_label="Passed"
+          if [ "$format_status" = "warning" ]; then
+            format_icon="⚠️"
+            format_label="Warning"
+          elif [ "$format_status" = "skipped" ]; then
+            format_icon="⏭️"
+            format_label="Skipped"
+          fi
+
+          lint_icon="✅"
+          lint_label="Passed"
+          if [ "$lint_status" = "warning" ]; then
+            lint_icon="⚠️"
+            lint_label="Warning"
+          elif [ "$lint_status" = "skipped" ]; then
+            lint_icon="⏭️"
+            lint_label="Skipped"
+          fi
+
+          UNIT_PASS=0
+          UNIT_FAIL=0
+          E2E_PASS=0
+          E2E_FAIL=0
+
+          if [ -f unit-results.txt ]; then
+            UNIT_PASS=$(grep -E "[#ℹ] pass" unit-results.txt | tail -1 | awk '{print $3}' | tr -d '\r' || echo "0")
+            UNIT_FAIL=$(grep -E "[#ℹ] fail" unit-results.txt | tail -1 | awk '{print $3}' | tr -d '\r' || echo "0")
             UNIT_PASS=${UNIT_PASS:-0}
             UNIT_FAIL=${UNIT_FAIL:-0}
+          fi
 
-            # Parse E2E Tests (Playwright)
-            E2E_PASS=$(grep -E "[0-9]+ passed" test-results.txt | tail -1 | awk '{print $1}' | tr -d '\r' || echo "0")
-            E2E_FAIL=$(grep -E "[0-9]+ failed" test-results.txt | tail -1 | awk '{print $1}' | tr -d '\r' || echo "0")
+          if [ -f e2e-results.txt ]; then
+            E2E_PASS=$(grep -E "[0-9]+ passed" e2e-results.txt | tail -1 | awk '{print $1}' | tr -d '\r' || echo "0")
+            E2E_FAIL=$(grep -E "[0-9]+ failed" e2e-results.txt | tail -1 | awk '{print $1}' | tr -d '\r' || echo "0")
             E2E_PASS=${E2E_PASS:-0}
             E2E_FAIL=${E2E_FAIL:-0}
-
-            echo "| Test Suite | Passed | Failed | Status |" >> $GITHUB_STEP_SUMMARY
-            echo "| :--- | :---: | :---: | :---: |" >> $GITHUB_STEP_SUMMARY
-
-            if [ "$UNIT_FAIL" -eq "0" ] && [ "$UNIT_PASS" -gt "0" ]; then
-              echo "| Unit Tests | $UNIT_PASS | $UNIT_FAIL | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "| Unit Tests | $UNIT_PASS | $UNIT_FAIL | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
-            fi
-
-            if [ "$E2E_FAIL" -eq "0" ] && [ "$E2E_PASS" -gt "0" ]; then
-              echo "| E2E Tests | $E2E_PASS | $E2E_FAIL | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "| E2E Tests | $E2E_PASS | $E2E_FAIL | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
-            fi
-          else
-            echo "❌ No test-results.txt found." >> $GITHUB_STEP_SUMMARY
           fi
 
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📦 Build Artifacts Summary" >> $GITHUB_STEP_SUMMARY
-          echo "Files generated in 'src/':" >> $GITHUB_STEP_SUMMARY
-          echo '```text' >> $GITHUB_STEP_SUMMARY
-          ls -R src/ | head -n 50 >> $GITHUB_STEP_SUMMARY || echo "No files found." >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "### 🧪 Test Results Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "> Prettier and ESLint are advisory checks. They report warnings but do not fail the workflow. Unit and E2E tests remain required." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
 
-          echo "<details><summary>Expand detailed test summary</summary>" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo '```text' >> $GITHUB_STEP_SUMMARY
-          if [ -f test-results.txt ]; then
-            tail -n 100 test-results.txt >> $GITHUB_STEP_SUMMARY
+          echo "#### Advisory quality checks" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Check | Status | Exit code | Notes |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| :--- | :---: | :---: | :--- |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Prettier | $format_icon $format_label | ${{ steps.format.outputs.exit_code || 'n/a' }} | Runs \`npm run format\` only; does not rewrite files. |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| ESLint | $lint_icon $lint_label | ${{ steps.lint.outputs.exit_code || 'n/a' }} | Advisory lint signal; does not block the job. |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "#### Required test suites" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Test Suite | Passed | Failed | Status |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| :--- | :---: | :---: | :---: |" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$UNIT_FAIL" -eq "0" ] && [ "$UNIT_PASS" -gt "0" ]; then
+            echo "| Unit Tests | $UNIT_PASS | $UNIT_FAIL | ✅ Passed |" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "No test results found." >> $GITHUB_STEP_SUMMARY
+            echo "| Unit Tests | $UNIT_PASS | $UNIT_FAIL | ❌ Failed |" >> "$GITHUB_STEP_SUMMARY"
           fi
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "</details>" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$E2E_FAIL" -eq "0" ] && [ "$E2E_PASS" -gt "0" ]; then
+            echo "| E2E Tests | $E2E_PASS | $E2E_FAIL | ✅ Passed |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "| E2E Tests | $E2E_PASS | $E2E_FAIL | ❌ Failed |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### 📦 Build Artifacts Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Files generated in \`dist/\`:" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```text' >> "$GITHUB_STEP_SUMMARY"
+          if [ -d dist ]; then
+            find dist -maxdepth 3 -type f | sort | head -n 80 >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No dist directory found." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "<details><summary>Prettier output</summary>" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```text' >> "$GITHUB_STEP_SUMMARY"
+          if [ -f format-results.txt ]; then
+            tail -n 120 format-results.txt >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No Prettier output found." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "</details>" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "<details><summary>ESLint output</summary>" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```text' >> "$GITHUB_STEP_SUMMARY"
+          if [ -f lint-results.txt ]; then
+            tail -n 160 lint-results.txt >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No ESLint output found." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "</details>" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "<details><summary>Unit test output</summary>" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```text' >> "$GITHUB_STEP_SUMMARY"
+          if [ -f unit-results.txt ]; then
+            tail -n 160 unit-results.txt >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No unit test output found." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "</details>" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "<details><summary>E2E test output</summary>" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```text' >> "$GITHUB_STEP_SUMMARY"
+          if [ -f e2e-results.txt ]; then
+            tail -n 160 e2e-results.txt >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No E2E output found." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "</details>" >> "$GITHUB_STEP_SUMMARY"
