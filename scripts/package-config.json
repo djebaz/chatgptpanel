@@ -8,8 +8,7 @@
     "manifest.json",
     "background.js",
     "icons",
-    "lib",
-    "assets"
+    "lib"
   ],
   "excludeFolders": [
     "tests",
