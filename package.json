@@ -9,17 +9,14 @@
     "@babel/preset-env": "^7.25.8",
     "@playwright/test": "^1.59.1",
     "@types/chrome": "^0.0.277",
-    "babel-jest": "^29.7.0",
     "chrome-mock": "^0.0.9",
     "cross-env": "^10.1.0",
     "eslint": "^10.3.0",
-    "jest": "^30.4.2",
-    "jest-environment-jsdom": "^30.4.1",
     "prettier": "^3.3.3"
   },
   "scripts": {
-    "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --silent",
-    "test:coverage": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --coverage --silent",
+    "test": "node --test tests/unit/*.js",
+    "test:coverage": "node --test --experimental-test-coverage tests/unit/*.js",
     "test:e2e": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-e2e.ps1",
     "test:e2e:canary": "cross-env PW_CFT_CANARY=1 pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-e2e.ps1",
     "codegen:e2e": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-e2e-codegen.ps1",
@@ -31,8 +28,7 @@
     "format:all": "prettier --write *.{js,json} src/**/*.{js,json,css,html} .github/workflows/*.{yml,yaml} devdocs/**/*.md tests/**/*.js",
     "format:write:files": "prettier --write",
     "playwright:install:chromium": "playwright install chromium",
-    "test:unit": "jest --coverage=false",
-    "test:unit:coverage": "jest --coverage"
-  },
-  "jest": {}
+    "test:unit": "node --test tests/unit/*.js",
+    "test:unit:coverage": "node --test --experimental-test-coverage tests/unit/*.js"
+  }
 }
