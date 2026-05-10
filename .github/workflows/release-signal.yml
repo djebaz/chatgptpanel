@@ -1,8 +1,8 @@
 name: Release Signal
 
 on:
-  #  pull_request:
-  #    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+  pull_request:
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
   workflow_dispatch:
     inputs:
       base_ref:
