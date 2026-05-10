@@ -11,6 +11,8 @@ This guide equips AI agents with the architecture, patterns, and rules needed to
   - The workflow comments on PRs after release-signal evaluation. The comment uses the same admonition-style status block as the local watcher and is refreshed on each pull-request run.
   - `scripts/watch-release-signal.ps1` is the local watcher/remediator. It can monitor the current PR, update labels/comments/statuses, and auto-apply Release audit fixes from a developer machine when invoked with the appropriate options.
   - `scripts/update-unreleased-audit.ps1` is the focused helper for Release audit footer updates. It expects a non-detached feature branch and may create/use a PR via `gh`.
+  - `scripts/release.ps1` is the local post-merge publisher. Run it from a clean `main` branch after the version-bump PR is merged. It validates package/manifest versions, checks release notes, packages the extension, creates/pushes `vx.y.z`, publishes the GitHub release, uploads the zip, and verifies the uploaded asset.
+  - `.github/workflows/publish-release.yml` exposes the same post-merge publishing path as a manual GitHub Actions workflow. Use it from the Actions tab when you want GitHub to package, tag, publish, upload, and verify the release asset.
 - Artifact Strategy: GitHub Action storage is optimized to minimize GB-Hours.
   - Text-based logs and test results are captured in **Job Summaries** (using Markdown tables and ✅/❌ icons for high-level visibility) instead of file artifacts.
   - Binary artifacts (if any) are only uploaded on failure (`if: failure()`), with `retention-days: 1` and `continue-on-error: true`.

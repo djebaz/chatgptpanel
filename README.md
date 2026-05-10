@@ -14,6 +14,7 @@ This extension provides a dedicated action popup allowing you to open the offici
 
 - Node.js (v24+)
 - PowerShell 7+
+- GitHub CLI (`gh`) for local release publishing
 
 ### Setup
 
@@ -57,3 +58,15 @@ npm run lint
 ### Release signal workflow
 
 The release signal workflow validates release-audit metadata in `devdocs/releases/unreleased.md`. On same-repository pull requests, it can auto-fix the Release audit footer, push the update back to the PR branch, and then re-run validation as the final required gate. Forked PRs and manual workflow runs are validation-only.
+
+### Publishing a release
+
+After the version-bump PR is merged to `main`, publish locally with:
+
+```powershell
+npm run release -- -Version "2.0.0"
+```
+
+The release script validates the current branch and version surfaces, packages the extension, creates/pushes the `v2.0.0` tag, publishes the GitHub release, uploads `dist/ChatPTPanel-2.0.0.zip`, and verifies the uploaded asset.
+
+A manual GitHub Actions workflow, **Publish Release**, is also available from the Actions tab. It accepts a version and release ref, packages the extension on GitHub-hosted runners, creates the tag if needed, publishes the GitHub release, uploads the zip, and writes a release summary.

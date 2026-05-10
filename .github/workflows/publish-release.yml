@@ -1,0 +1,211 @@
+name: Publish Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version without leading v. Defaults to src/manifest.json version.'
+        required: false
+        type: string
+      ref:
+        description: 'Branch, tag, or SHA to release from.'
+        required: false
+        default: 'main'
+        type: string
+      skip_tests:
+        description: 'Skip advisory release checks before packaging.'
+        required: false
+        default: false
+        type: boolean
+      overwrite_asset:
+        description: 'Overwrite the release asset if the release already exists.'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout release ref
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || 'main' }}
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Resolve version
+        id: version
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          $inputVersion = '${{ inputs.version }}'.Trim()
+          if ($inputVersion) {
+            $version = $inputVersion
+          }
+          else {
+            $manifest = Get-Content -Raw -LiteralPath './src/manifest.json' | ConvertFrom-Json
+            $version = [string] $manifest.version
+          }
+
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            throw "Version must be semver x.y.z. Got: $version"
+          }
+
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=v$version" >> $env:GITHUB_OUTPUT
+          "artifact=dist/ChatPTPanel-$version.zip" >> $env:GITHUB_OUTPUT
+
+      - name: Validate version surfaces
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          $version = '${{ steps.version.outputs.version }}'
+          $package = Get-Content -Raw -LiteralPath './package.json' | ConvertFrom-Json
+          $manifest = Get-Content -Raw -LiteralPath './src/manifest.json' | ConvertFrom-Json
+
+          if ([string] $package.version -ne $version) {
+            throw "package.json version '$($package.version)' does not match '$version'."
+          }
+          if ([string] $manifest.version -ne $version) {
+            throw "src/manifest.json version '$($manifest.version)' does not match '$version'."
+          }
+
+          $releaseNotes = "devdocs/releases/$version.md"
+          if (-not (Test-Path -LiteralPath $releaseNotes)) {
+            throw "Release notes not found: $releaseNotes"
+          }
+          $notes = Get-Content -Raw -LiteralPath $releaseNotes
+          if ($notes -notmatch "(?m)^## v$([regex]::Escape($version))\s*$") {
+            throw "Release notes must contain header: ## v$version"
+          }
+
+      - name: Run advisory release checks
+        if: ${{ !inputs.skip_tests }}
+        run: |
+          npm run format
+          npm run lint
+          npm run test:unit
+
+      - name: Package extension
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/package-extension.ps1 -Version '${{ steps.version.outputs.version }}'
+
+      - name: Verify artifact
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          $artifact = '${{ steps.version.outputs.artifact }}'
+          if (-not (Test-Path -LiteralPath $artifact)) {
+            throw "Expected artifact not found: $artifact"
+          }
+
+          $item = Get-Item -LiteralPath $artifact
+          if ($item.Length -le 0) {
+            throw "Artifact is empty: $artifact"
+          }
+
+      - name: Create tag if missing
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag='${{ steps.version.outputs.tag }}'
+          if git ls-remote --exit-code --tags origin "$tag" >/dev/null 2>&1; then
+            echo "Tag already exists on origin: $tag"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "$tag"
+          git push origin "$tag"
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version='${{ steps.version.outputs.version }}'
+          tag='${{ steps.version.outputs.tag }}'
+          artifact='${{ steps.version.outputs.artifact }}'
+          notes="devdocs/releases/$version.md"
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            if [ '${{ inputs.overwrite_asset }}' = 'true' ]; then
+              gh release upload "$tag" "$artifact" --clobber
+            else
+              echo "Release already exists: $tag"
+              echo "Set overwrite_asset=true to replace the asset."
+              exit 1
+            fi
+          else
+            gh release create "$tag" "$artifact" --title "$tag" --notes-file "$notes"
+          fi
+
+      - name: Verify GitHub release
+        id: verify
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          $tag = '${{ steps.version.outputs.tag }}'
+          $artifactName = Split-Path -Leaf '${{ steps.version.outputs.artifact }}'
+          $release = gh release view $tag --json tagName,name,isDraft,isPrerelease,assets | ConvertFrom-Json
+
+          if ($release.tagName -ne $tag) {
+            throw "Release verification failed: expected $tag, got $($release.tagName)"
+          }
+          if ($release.isDraft) {
+            throw "Release verification failed: release is draft."
+          }
+          if ($release.isPrerelease) {
+            throw "Release verification failed: release is prerelease."
+          }
+
+          $asset = @($release.assets | Where-Object { $_.name -eq $artifactName }) | Select-Object -First 1
+          if (-not $asset) {
+            throw "Release verification failed: asset not found: $artifactName"
+          }
+
+          "asset_name=$($asset.name)" >> $env:GITHUB_OUTPUT
+          "asset_size=$($asset.size)" >> $env:GITHUB_OUTPUT
+          "asset_url=$($asset.url)" >> $env:GITHUB_OUTPUT
+          if ($asset.PSObject.Properties['digest']) {
+            "asset_digest=$($asset.digest)" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Add release summary
+        if: always()
+        run: |
+          echo "### 🚀 Release Publish Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| :--- | :--- |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Tag | \`${{ steps.version.outputs.tag }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Version | \`${{ steps.version.outputs.version }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Asset | \`${{ steps.verify.outputs.asset_name }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Asset size | \`${{ steps.verify.outputs.asset_size }}\` bytes |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Asset digest | \`${{ steps.verify.outputs.asset_digest }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Asset URL | ${{ steps.verify.outputs.asset_url }} |" >> "$GITHUB_STEP_SUMMARY"
