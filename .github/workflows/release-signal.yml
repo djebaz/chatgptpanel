@@ -1,8 +1,8 @@
 name: Release Signal
 
 on:
-  #  pull_request:
-  #    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+  pull_request:
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
   workflow_dispatch:
     inputs:
       base_ref:
@@ -15,71 +15,296 @@ on:
         default: 'HEAD'
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
-
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+  issues: write
 
 jobs:
   release-signal:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout PR branch
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Checkout manual ref
+        if: github.event_name != 'pull_request'
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          token: ${{ github.token }}
 
-      - name: Evaluate release signal and docs sync
-        id: release_signal
+      - name: Resolve release-signal refs
+        id: refs
+        shell: bash
         run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "base_ref=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
+            echo "head_ref=HEAD" >> "$GITHUB_OUTPUT"
+            echo "pr_number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+            echo "pr_title=${{ github.event.pull_request.title }}" >> "$GITHUB_OUTPUT"
+            echo "can_push=${{ github.event.pull_request.head.repo.full_name == github.repository }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "base_ref=${{ inputs.base_ref }}" >> "$GITHUB_OUTPUT"
+            echo "head_ref=${{ inputs.head_ref }}" >> "$GITHUB_OUTPUT"
+            echo "pr_number=" >> "$GITHUB_OUTPUT"
+            echo "pr_title=" >> "$GITHUB_OUTPUT"
+            echo "can_push=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Evaluate release signal before auto-fix
+        id: release_signal_initial
+        shell: bash
+        run: |
+          set +e
           pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-release-signal.ps1 \
-            -BaseRef "${{ github.event.pull_request.base.sha }}" \
-            -HeadRef "${{ github.event.pull_request.head.sha }}" \
+            -BaseRef "${{ steps.refs.outputs.base_ref }}" \
+            -HeadRef "${{ steps.refs.outputs.head_ref }}" \
+            | tee release-signal-initial-log.txt
+          initial_exit=${PIPESTATUS[0]}
+          echo "exit_code=$initial_exit" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Auto-fix unreleased release audit
+        id: autofix
+        if: github.event_name == 'pull_request' && steps.refs.outputs.can_push == 'true'
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+
+          $path = 'devdocs/releases/unreleased.md'
+          $prNumber = [int]'${{ steps.refs.outputs.pr_number }}'
+          $prToken = "#$prNumber"
+          $prTitle = @'
+          ${{ steps.refs.outputs.pr_title }}
+          '@.Trim()
+
+          function Get-ReleaseAuditFooter {
+            param(
+              [Parameter(Mandatory = $true)]
+              [AllowEmptyString()]
+              [string] $Text
+            )
+
+            $pattern = '(?s)^(?<prefix>.*?)(?:\r?\n)?## Release audit\r?\n\r?\n- PRs:\s*(?<prs>[^\r\n]*)\r?\n- Scope:\s*(?<scope>[^\r\n]*)'
+            $match = [regex]::Match($Text, $pattern)
+            if (-not $match.Success) {
+              return $null
+            }
+
+            return @{
+              Prefix = $match.Groups['prefix'].Value.TrimEnd()
+              PrLine = $match.Groups['prs'].Value.Trim()
+              ScopeLine = $match.Groups['scope'].Value.Trim()
+              PrTokens = @([regex]::Matches($match.Groups['prs'].Value, '#\d+') | ForEach-Object { $_.Value }) | Sort-Object -Unique
+            }
+          }
+
+          function Get-SanitizedScopeSuffix {
+            param(
+              [AllowEmptyString()]
+              [string] $Text
+            )
+
+            $clean = ($Text -replace '^(fix|feat|docs|chore|build|ci|test|refactor|perf)[:\-]', '')
+            $clean = ($clean -replace '[^a-zA-Z0-9]', ' ').Trim()
+            while ($clean -match '  ') {
+              $clean = $clean -replace '  ', ' '
+            }
+            return $clean
+          }
+
+          if (-not (Test-Path -LiteralPath $path)) {
+            Write-Host "release_audit_changed=false" >> $env:GITHUB_OUTPUT
+            Write-Host "::warning title=Release audit auto-fix skipped::$path does not exist."
+            exit 0
+          }
+
+          $text = Get-Content -Raw -LiteralPath $path
+          $footer = Get-ReleaseAuditFooter -Text $text
+          if (-not $footer) {
+            Write-Host "release_audit_changed=false" >> $env:GITHUB_OUTPUT
+            Write-Host "::warning title=Release audit auto-fix skipped::$path does not have a parseable Release audit footer."
+            exit 0
+          }
+
+          $baseText = ''
+          $baseFooter = $null
+          try {
+            $baseText = git show "${{ steps.refs.outputs.base_ref }}:$path"
+            if ($LASTEXITCODE -eq 0 -and $baseText) {
+              $baseFooter = Get-ReleaseAuditFooter -Text ($baseText -join "`n")
+            }
+          }
+          catch {
+            Write-Host "::warning title=Release audit base comparison failed::$($_.Exception.Message)"
+          }
+
+          $prAlreadyListed = @($footer.PrTokens) -contains $prToken
+          $scopeAlreadyGrown = $false
+          if ($baseFooter -and $footer.ScopeLine.Length -gt $baseFooter.ScopeLine.Length) {
+            $scopeAlreadyGrown = $true
+          }
+
+          $changed = $false
+
+          $cleanPrLine = $footer.PrLine.Trim().TrimEnd(',').Trim()
+          if (-not $prAlreadyListed) {
+            if ([string]::IsNullOrWhiteSpace($cleanPrLine)) {
+              $newPrLine = $prToken
+            }
+            else {
+              $newPrLine = "$cleanPrLine, $prToken"
+            }
+            $changed = $true
+          }
+          else {
+            $newPrLine = $footer.PrLine
+          }
+
+          if (-not $scopeAlreadyGrown) {
+            $branchName = git branch --show-current
+            $scopeSuffix = Get-SanitizedScopeSuffix -Text $branchName
+            if (-not $scopeSuffix) {
+              $scopeSuffix = Get-SanitizedScopeSuffix -Text $prTitle
+            }
+            if (-not $scopeSuffix) {
+              $scopeSuffix = "PR $prNumber"
+            }
+
+            $cleanScope = $footer.ScopeLine.Trim().TrimEnd(';').TrimEnd('.').Trim()
+            if ([string]::IsNullOrWhiteSpace($cleanScope)) {
+              $newScopeLine = $scopeSuffix
+            }
+            elseif ($cleanScope -notmatch [regex]::Escape($scopeSuffix)) {
+              $newScopeLine = "$cleanScope; $scopeSuffix"
+            }
+            else {
+              $newScopeLine = $footer.ScopeLine
+            }
+
+            if ($newScopeLine -ne $footer.ScopeLine) {
+              $changed = $true
+            }
+          }
+          else {
+            $newScopeLine = $footer.ScopeLine
+          }
+
+          if (-not $changed) {
+            "release_audit_changed=false" >> $env:GITHUB_OUTPUT
+            Write-Host "Release audit already up to date."
+            exit 0
+          }
+
+          $newText = @(
+            $footer.Prefix
+            ''
+            '## Release audit'
+            ''
+            "- PRs: $newPrLine"
+            "- Scope: $newScopeLine"
+          ) -join "`n"
+
+          Set-Content -LiteralPath $path -Value $newText -Encoding UTF8
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add $path
+
+          $diff = git diff --cached --name-only
+          if (-not $diff) {
+            "release_audit_changed=false" >> $env:GITHUB_OUTPUT
+            Write-Host "No staged release audit changes."
+            exit 0
+          }
+
+          git commit -m "docs: sync release audit for $prToken"
+          git push
+
+          "release_audit_changed=true" >> $env:GITHUB_OUTPUT
+          Write-Host "Auto-fixed $path for $prToken."
+
+      - name: Evaluate release signal
+        id: release_signal
+        shell: bash
+        run: |
+          set -o pipefail
+          pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-release-signal.ps1 \
+            -BaseRef "${{ steps.refs.outputs.base_ref }}" \
+            -HeadRef HEAD \
             | tee release-signal-log.txt
 
       - name: Add release signal summary to Job Summary
         if: always()
+        shell: bash
         run: |
-          echo "### 🚀 Release Signal Summary" >> $GITHUB_STEP_SUMMARY
-          echo "| Metric | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+          echo "### 🚀 Release Signal Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${{ steps.autofix.outputs.release_audit_changed }}" = "true" ]; then
+            echo "> Auto-fix pushed an update to \`devdocs/releases/unreleased.md\`, then the validator ran again." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "> No release-audit auto-fix was applied." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Metric | Status |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| :--- | :--- |" >> "$GITHUB_STEP_SUMMARY"
 
           RELEASE_LIKELY="${{ steps.release_signal.outputs.release_likely }}"
-          if [ "$RELEASE_LIKELY" == "true" ]; then
-            echo "| Release likely | ✅ \`true\` |" >> $GITHUB_STEP_SUMMARY
+          if [ "$RELEASE_LIKELY" = "true" ]; then
+            echo "| Release likely | ✅ \`true\` |" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "| Release likely | ⚪ \`false\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Release likely | ⚪ \`false\` |" >> "$GITHUB_STEP_SUMMARY"
           fi
 
           DOCS_REQUIRED="${{ steps.release_signal.outputs.docs_required }}"
-          if [ "$DOCS_REQUIRED" == "true" ]; then
-            echo "| Docs required | ⚠️ \`true\` |" >> $GITHUB_STEP_SUMMARY
+          if [ "$DOCS_REQUIRED" = "true" ]; then
+            echo "| Docs required | ⚠️ \`true\` |" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "| Docs required | ✅ \`false\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Docs required | ✅ \`false\` |" >> "$GITHUB_STEP_SUMMARY"
           fi
 
           ERROR_COUNT="${{ steps.release_signal.outputs.error_count }}"
           if [ "$ERROR_COUNT" != "0" ] && [ -n "$ERROR_COUNT" ]; then
-            echo "| Error count | ❌ \`$ERROR_COUNT\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Error count | ❌ \`$ERROR_COUNT\` |" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "| Error count | ✅ \`0\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Error count | ✅ \`0\` |" >> "$GITHUB_STEP_SUMMARY"
           fi
 
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "<details><summary>Expand detailed release signal log</summary>" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo '```text' >> $GITHUB_STEP_SUMMARY
-          if [ -f release-signal-log.txt ]; then
-            cat release-signal-log.txt >> $GITHUB_STEP_SUMMARY
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "<details><summary>Initial release signal log</summary>" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```text' >> "$GITHUB_STEP_SUMMARY"
+          if [ -f release-signal-initial-log.txt ]; then
+            cat release-signal-initial-log.txt >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "No log found." >> $GITHUB_STEP_SUMMARY
+            echo "No initial log found." >> "$GITHUB_STEP_SUMMARY"
           fi
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "</details>" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "</details>" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "<details><summary>Final release signal log</summary>" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```text' >> "$GITHUB_STEP_SUMMARY"
+          if [ -f release-signal-log.txt ]; then
+            cat release-signal-log.txt >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No final log found." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "</details>" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Sync release label from detection
-        if: always()
+        if: always() && github.event_name == 'pull_request'
         uses: actions/github-script@v9
         with:
           script: |
@@ -100,11 +325,10 @@ jobs:
                 labels: [recommended],
               });
               core.info(`Explicit release label missing; auto-applied \`${recommended}\` from the release-signal result.`);
-              return;
             }
 
       - name: Comment release-signal failure on PR
-        if: always() && steps.release_signal.outputs.error_count != '0'
+        if: always() && github.event_name == 'pull_request' && steps.release_signal.outputs.error_count != '0'
         uses: actions/github-script@v9
         with:
           script: |
