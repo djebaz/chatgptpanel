@@ -149,7 +149,7 @@ function Get-ReleaseAuditFooter {
     [string]$Text
   )
 
-  $footerPattern = '(?s)^(?<prefix>.*?)(?:\r?\n)?## Release audit\r?\n\r?\n- PRs:\s*(?<prs>.+?)\r?\n- Scope:\s*(?<scope>.+?)\s*$'
+  $footerPattern = '(?s)^(?<prefix>.*?)(?:\r?\n)?## Release audit\r?\n\r?\n- PRs:\s*(?<prs>[^\r\n]+)\r?\n- Scope:\s*(?<scope>[^\r\n]*)'
   $match = [regex]::Match($Text, $footerPattern)
   if (-not $match.Success) {
     return $null
@@ -197,6 +197,7 @@ function Update-UnreleasedReleaseAudit {
     $baseRefPath = if ($BaseRef) { "$BaseRef`:$Path" } else { "origin/$baseBranch`:$Path" }
     $baseUnreleasedText = Invoke-Git -Args @('show', $baseRefPath)
     $baseFooter = Get-ReleaseAuditFooter -Text $baseUnreleasedText
+    Write-Status "ℹ️  Debug [Local]: Current Scope length=$($footer.ScopeLine.Length), Base Scope length=$($baseFooter.ScopeLine.Length)"
     if ($baseFooter -and $footer.ScopeLine.Length -ge $baseFooter.ScopeLine.Length) {
       $scopeAlreadyGrown = $true
       Write-Status "Scope already grown ($($footer.ScopeLine.Length) > $($baseFooter.ScopeLine.Length)). Skipping auto-append."
