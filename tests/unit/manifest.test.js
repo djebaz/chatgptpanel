@@ -23,9 +23,7 @@ describe('Manifest Validation', () => {
   });
 
   it('should not have excessive permissions', () => {
-    // For a simple wrapper, we usually don't need any special permissions
-    // unless we use storage or similar.
-    const allowedPermissions = ['storage']; // Adjust if you add features
+    const allowedPermissions = ['storage', 'sidePanel', 'declarativeNetRequest', 'declarativeNetRequestFeedback', 'tabs']; 
     const permissions = manifest.permissions || [];
     
     permissions.forEach(perm => {
@@ -46,8 +44,7 @@ describe('Manifest Validation', () => {
     });
   });
 
-  it('should not define a default_popup (Option A requirement)', () => {
-    // In Option A, we use background.js onClicked, which only works if NO popup is defined.
-    assert.strictEqual(manifest.action.default_popup, undefined, 'Option A should not have a default_popup');
+  it('should define a default_popup', () => {
+    assert.strictEqual(manifest.action.default_popup, 'popup.html', 'Should define popup.html as default_popup');
   });
 });

@@ -22,39 +22,34 @@ test.describe('ChatGPT Panel E2E Test', () => {
     await browserContext.close();
   });
 
-  test('extension loads and opens chatgpt.com when action is clicked', async () => {
-    // 1. Get the background service worker
+  test('extension popup allows opening chatgpt', async () => {
+    // 1. Get the background service worker to extract the extension ID
     let [background] = browserContext.serviceWorkers();
     if (!background) {
       background = await browserContext.waitForEvent('serviceworker');
     }
 
-    expect(background).toBeTruthy();
+    const extensionId = background.url().split('/')[2];
+    const popupUrl = `chrome-extension://${extensionId}/popup.html`;
 
-    // 2. Set up a listener for a new page being created
+    // 2. Open the popup in a new page (simulating clicking the action icon)
+    const popupPage = await browserContext.newPage();
+    await popupPage.goto(popupUrl);
+
+    // 3. Verify the popup loads and has the expected buttons
+    await expect(popupPage.locator('#btn-popup')).toBeVisible();
+    await expect(popupPage.locator('#btn-sidepanel')).toBeVisible();
+    await expect(popupPage.locator('#btn-tab')).toBeVisible();
+
+    // 4. Click the "Open in Window" button and wait for the new popup to be created
     const newPagePromise = browserContext.waitForEvent('page');
-
-    // 3. Evaluate inside the service worker to verify listeners and simulate action
-    await background.evaluate(async () => {
-      // Playwright can't physically click the extension icon in the toolbar,
-      // so we verify the listener is present and simulate its exact behavior.
-      if (chrome.action.onClicked.hasListeners()) {
-        chrome.windows.create({
-          url: 'https://chatgpt.com',
-          type: 'popup',
-          width: 480,
-          height: 700
-        });
-      } else {
-        throw new Error('chrome.action.onClicked has no listeners registered!');
-      }
-    });
-
-    // 4. Wait for the new window/page to open
+    await popupPage.locator('#btn-popup').click();
+    
+    // 5. Wait for the new window/page to open
     const newPage = await newPagePromise;
     await newPage.waitForLoadState('domcontentloaded');
 
-    // 5. Verify the URL is correct
+    // 6. Verify the URL is correct
     expect(newPage.url()).toContain('chatgpt.com');
   });
 });
