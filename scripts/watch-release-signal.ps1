@@ -337,7 +337,7 @@ function Invoke-AutoRemediation {
     ($errorsJoined -match "#$PrNumber\b")
 
   $scopeMismatchError = $errorsJoined -and
-    ($errorsJoined -match 'Scope:.*summary')
+    ($errorsJoined -match 'Scope|summary|line did not grow')
 
   if ($missingAuditPrError -or $scopeMismatchError) {
     $result = Update-UnreleasedReleaseAudit -Path $UnreleasedPath -PrNumber $PrNumber -PrTitle $PrTitle
