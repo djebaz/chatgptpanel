@@ -301,7 +301,11 @@ function Invoke-AutoRemediation {
     [Parameter(Mandatory = $true)]
     [string]$PrTitle,
     [Parameter(Mandatory = $true)]
-    [hashtable]$Outputs
+    [hashtable]$Outputs,
+    [Parameter(Mandatory = $true)]
+    [string]$BaseSha,
+    [Parameter(Mandatory = $true)]
+    [string]$HeadSha
   )
 
   $actions = New-Object System.Collections.Generic.List[string]
@@ -343,8 +347,22 @@ function Invoke-AutoRemediation {
     ($errorsJoined -match 'Scope|summary|line did not grow')
 
   if ($missingAuditPrError -or $scopeMismatchError) {
-    Write-Status "Audit remediation triggered (MissingPR=$missingAuditPrError, ScopeMismatch=$scopeMismatchError)"
-    $baseRef = if ($Outputs.ContainsKey('base_ref')) { $Outputs['base_ref'] } else { "" }
+    Write-Status "Audit remediation detected (MissingPR=$missingAuditPrError, ScopeMismatch=$scopeMismatchError). Waiting 45s for manual fix..."
+    Start-Sleep -Seconds 45
+    
+    # Re-fetch the PR state to see if it was fixed manually during the wait
+    $pr = Invoke-GhJson -Args @('api', "repos/$RepoName/pulls/$PrNumber")
+    # Re-evaluate locally to see if the file was fixed
+    $evaluation = Invoke-ReleaseSignalEvaluation -SourceId "re-check" -Trigger "post-grace-period re-check" -PrNumber $PrNumber -BaseSha $BaseSha -HeadSha $HeadSha -PrBody ([string]$pr.body) -Labels @($pr.labels)
+    
+    $reCheckErrors = if ($evaluation['Outputs'].ContainsKey('errors_joined')) { $evaluation['Outputs']['errors_joined'] } else { '' }
+    if ($reCheckErrors -notmatch 'Scope|summary|line did not grow|must list the current PR') {
+      Write-Status "✅ Audit fixed manually during grace period. Skipping auto-remediation."
+      return @()
+    }
+
+    Write-Status "ℹ️ Grace period over. Proceeding with auto-remediation..."
+    $baseRef = if ($evaluation['Outputs'].ContainsKey('base_ref')) { $evaluation['Outputs']['base_ref'] } else { "" }
     $result = Update-UnreleasedReleaseAudit -Path $UnreleasedPath -PrNumber $PrNumber -PrTitle $PrTitle -BaseRef $baseRef
     if ($result) {
       if ($result -eq 'List' -or $result -eq 'Both') {
@@ -990,7 +1008,7 @@ while ($true) {
 
           if ($Apply) {
             try {
-              $remediationActions = Invoke-AutoRemediation -RepoName $repoName -PrNumber $prNumber -PrTitle ([string]$pr.title) -Outputs $evaluation['Outputs']
+              $remediationActions = Invoke-AutoRemediation -RepoName $repoName -PrNumber $prNumber -PrTitle ([string]$pr.title) -Outputs $evaluation['Outputs'] -BaseSha $baseSha -HeadSha $headSha
 
               # Remediation already handled by Invoke-AutoRemediation
 
