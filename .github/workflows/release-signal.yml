@@ -334,7 +334,7 @@ jobs:
             }
 
       - name: Comment release-signal result on PR
-        if: always() && github.event_name == 'pull_request' && (steps.autofix.outputs.release_audit_changed == 'true' || steps.release_signal.outputs.error_count != '0')
+        if: always() && github.event_name == 'pull_request'
         uses: actions/github-script@v9
         with:
           script: |
