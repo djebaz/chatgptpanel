@@ -22,5 +22,5 @@
 
 ## Release audit
 
-- PRs: #1, #2, #3
-- Scope: tooling; artifact-optimization; README, docsync and formatting; doc sync tooling
+- PRs: #1, #2, #3, #4
+- Scope: tooling; artifact-optimization; README, docsync and formatting; doc sync tooling; comprehensive unit tests for core logic

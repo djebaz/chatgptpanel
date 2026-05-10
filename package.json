@@ -10,6 +10,7 @@
     "chrome-mock": "^0.0.9",
     "cross-env": "^10.1.0",
     "eslint": "^10.3.0",
+    "jsdom": "^29.1.1",
     "prettier": "^3.3.3"
   },
   "scripts": {

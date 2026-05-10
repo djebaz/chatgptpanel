@@ -1,19 +1,10 @@
-// Initialize the chat container and log
-const chatContainer = document.getElementById('chat-container');
-const chatLog = document.getElementById('chat-log');
-
-// Load the Google Sign-In API
-gapi.load('auth2', function () {
-  gapi.auth2.init({
-    client_id: 'YOUR_CLIENT_ID',
-    scope: 'email',
-  });
-});
-
 // Send a message to the ChatGPT API
-function sendMessage(message, apiKey) {
+export function sendMessage(message, apiKey) {
+  const chatContainer = document.getElementById('chat-container');
+  const chatLog = document.getElementById('chat-log');
+
   // Make a request to the ChatGPT API
-  fetch('https://api.openai.com/v1/engine/davinci-codex/completions', {
+  return fetch('https://api.openai.com/v1/engine/davinci-codex/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -38,15 +29,18 @@ function sendMessage(message, apiKey) {
     })
     .catch(error => {
       console.error('Error:', error);
+      throw error;
     });
 }
 
-// Send a message when the form is submitted
-const chatForm = document.getElementById('chat-form');
-chatForm.addEventListener('submit', event => {
+// Handle form submission
+export function handleFormSubmit(event) {
   event.preventDefault();
+  const chatContainer = document.getElementById('chat-container');
+  const chatLog = document.getElementById('chat-log');
   const chatInput = document.getElementById('chat-input');
   const message = chatInput.value.trim();
+
   if (message) {
     const chatItem = document.createElement('div');
     chatItem.classList.add('chat-item', 'user');
@@ -55,12 +49,12 @@ chatForm.addEventListener('submit', event => {
     chatContainer.scrollTop = chatContainer.scrollHeight;
 
     // Get the user's OpenAI API key from the server
-    gapi.auth2
+    return gapi.auth2
       .getAuthInstance()
       .signIn()
       .then(function () {
         const token = gapi.auth2.getAuthInstance().currentUser.get().getAuthResponse().id_token;
-        fetch('https://YOUR_SERVER_URL/getApiKey', {
+        return fetch('https://YOUR_SERVER_URL/getApiKey', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -68,15 +62,42 @@ chatForm.addEventListener('submit', event => {
           body: JSON.stringify({
             token: token,
           }),
-        })
-          .then(response => response.json())
-          .then(data => {
-            const apiKey = data.apiKey;
-            sendMessage(message, apiKey);
-          })
-          .catch(error => {
-            console.error('Error:', error);
-          });
+        });
+      })
+      .then(response => response.json())
+      .then(data => {
+        const apiKey = data.apiKey;
+        return sendMessage(message, apiKey);
+      })
+      .catch(error => {
+        console.error('Error:', error);
       });
   }
-});
+}
+
+// Initialize the popup
+export function initPopup() {
+  // Load the Google Sign-In API
+  if (typeof gapi !== 'undefined') {
+    gapi.load('auth2', function () {
+      gapi.auth2.init({
+        client_id: 'YOUR_CLIENT_ID',
+        scope: 'email',
+      });
+    });
+  }
+
+  const chatForm = document.getElementById('chat-form');
+  if (chatForm) {
+    chatForm.addEventListener('submit', handleFormSubmit);
+  }
+}
+
+// Only run if we are in a browser environment
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initPopup);
+  } else {
+    initPopup();
+  }
+}
