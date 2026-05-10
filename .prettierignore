@@ -1,0 +1,21 @@
+# Ignore files with malformed/incomplete markup that Prettier cannot parse
+# Lock files
+package-lock.json
+yarn.lock
+
+# Build artifacts
+dist/
+build/
+*.tgz
+
+# Dependencies
+node_modules/
+
+# Test artifacts
+coverage/
+.nyc_output/
+tests/e2e/mock-site/
+
+# OS files
+.DS_Store
+Thumbs.db

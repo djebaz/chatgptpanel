@@ -1,6 +1,6 @@
 {
-  "name": "mothanext",
-  "version": "2.1.1",
+  "name": "chatgptpanel",
+  "version": "1.0.0",
   "description": "Auto Clicker Pro â€” Chrome/Brave extension for automated clicking and video automation.",
   "license": "MIT",
   "type": "module",

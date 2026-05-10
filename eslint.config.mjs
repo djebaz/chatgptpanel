@@ -6,7 +6,7 @@ export default [
       "dist/**",
       "build/**",
       "src/vendor/**",
-      "src/assets/**",
+      "src/icons/**",
     ],
   },
 
@@ -17,7 +17,7 @@ export default [
   },
 
   {
-    files: ["src/**/*.js", "tests/**/*.js", "test/**/*.js"],
+    files: ["src/**/*.js", "tests/**/*.js"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "script",
@@ -38,17 +38,6 @@ export default [
       "no-useless-escape": "off",
       "no-control-regex": "off",
       "no-empty-pattern": "off",
-    },
-  },
-
-  {
-    files: [
-      "src/pages/pipeline/concurrency.js",
-      "src/pages/pipeline/download-chunks.js",
-    ],
-    languageOptions: {
-      ecmaVersion: "latest",
-      sourceType: "module",
     },
   },
 ];
