@@ -43,7 +43,8 @@ jobs:
         if: success() || failure()
         run: |
           set -o pipefail
-          npm run test:unit 2>&1 | tee test-results.txt
+          # Force TAP reporter for stable parsing
+          NODE_TEST_REPORTER=tap npm run test:unit 2>&1 | tee test-results.txt
 
       - name: Run E2E Tests
         if: success() || failure()
@@ -57,9 +58,9 @@ jobs:
           echo "### 🧪 Test Results Summary" >> $GITHUB_STEP_SUMMARY
 
           if [ -f test-results.txt ]; then
-            # Parse Unit Tests (TAP)
-            UNIT_PASS=$(grep "# pass" test-results.txt | tail -1 | awk '{print $3}' | tr -d '\r' || echo "0")
-            UNIT_FAIL=$(grep "# fail" test-results.txt | tail -1 | awk '{print $3}' | tr -d '\r' || echo "0")
+            # Parse Unit Tests (TAP or Spec)
+            UNIT_PASS=$(grep -E "[#ℹ] pass" test-results.txt | tail -1 | awk '{print $3}' | tr -d '\r' || echo "0")
+            UNIT_FAIL=$(grep -E "[#ℹ] fail" test-results.txt | tail -1 | awk '{print $3}' | tr -d '\r' || echo "0")
             UNIT_PASS=${UNIT_PASS:-0}
             UNIT_FAIL=${UNIT_FAIL:-0}
 
