@@ -1,30 +1,77 @@
-﻿param(
-    [string] $AppName = '', # Path to per-repo packaging config (JSON). Example: scripts/package-config.json
-    [string] $ConfigPath = '', # Optional: override version used in dist folder/zip naming only; does NOT mutate src manifest.
-    [string] $Version = '', # Optional custom folder name inside dist/. Default: <AppName>-<Version>
-    [string] $TargetName = '', # Optional: skip zip creation and keep only the staged folder under dist/.
-    [switch] $NoZip, # Marks the staged manifest as a dev build by setting version_name = "<version>-dev".
-    [switch] $DevBuild, # Optional: build an extra dev variant folder/zip with suffix "-dev".
-    [switch] $BuildDevVariant, # Optional: fail if any allowlisted item is missing (default: warn + continue).
-    [switch] $Strict
+
+#Requires -PSEdition Core
+#Requires -Version 7.0
+param(
+    [string] $AppName,
+    [string] $ConfigPath,
+    [string] $Version,
+    [string] $TargetName,
+    [switch] $DevBuild,
+    [switch] $BuildDevVariant,
+    [switch] $Strict,
+    [switch] $NoZip
 )
+
+# Helper: Check if a path is excluded by folder, glob, or name pattern
+function Test-IsExcluded {
+    param(
+        [string] $RelPath, # relative to srcRoot
+        [string[]] $ExcludeFolders,
+        [string[]] $ExcludeGlobs,
+        [string[]] $ExcludeNamePatterns
+    )
+    # Folder exclusion (top-level or subfolder match)
+    foreach ($folder in $ExcludeFolders) {
+        if ($RelPath -eq $folder -or $RelPath.StartsWith("$folder/")) {
+            return $true
+        }
+    }
+    # Glob exclusion (PowerShell -like pattern)
+    foreach ($glob in $ExcludeGlobs) {
+        if ($RelPath -like $glob) {
+            return $true
+        }
+    }
+    # Name pattern exclusion (regex)
+    foreach ($pat in $ExcludeNamePatterns) {
+        if ($RelPath -match $pat) {
+            return $true
+        }
+    }
+    return $false
+}
+
+# ---------------- MAIN ----------------
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+Set-Location $repoRoot
+
+$cfgPathResolved = if ($ConfigPath) {
+    $ConfigPath
+}
+else {
+    (Join-Path $PSScriptRoot 'package-config.json')
+}
+
+if ($PSVersionTable.PSEdition -ne 'Core') {
+    throw "ABORT(A0): Must run in PowerShell Core (pwsh), not Windows PowerShell (powershell.exe)"
+}
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-function Ensure-Dir ([string] $Path) {
+function Initialize-Directory ([string] $Path) {
     if (-not (Test-Path $Path)) {
         New-Item -ItemType Directory -Path $Path | Out-Null
     }
 }
 
-function Remove-IfExist ([string] $Path) {
+function Remove-IfExists ([string] $Path) {
     if (Test-Path $Path) {
         Remove-Item $Path -Recurse -Force
     }
 }
 
-function Load-Config ([string] $CfgPath) {
+function Import-Configuration ([string] $CfgPath) {
     if (-not (Test-Path $CfgPath)) {
         throw "ConfigPath not found: $CfgPath"
     }
@@ -33,12 +80,14 @@ function Load-Config ([string] $CfgPath) {
 
     $hasSrcRoot = $cfg.PSObject.Properties.Name -contains 'srcRoot'
     if (-not $hasSrcRoot -or -not $cfg.srcRoot) {
-        $cfg | Add-Member -NotePropertyName srcRoot -NotePropertyValue 'src' -Force
+        $cfg
+        | Add-Member -NotePropertyName srcRoot -NotePropertyValue 'src' -Force
     }
 
     $hasDistRoot = $cfg.PSObject.Properties.Name -contains 'distRoot'
     if (-not $hasDistRoot -or -not $cfg.distRoot) {
-        $cfg | Add-Member -NotePropertyName distRoot -NotePropertyValue 'dist' -Force
+        $cfg
+        | Add-Member -NotePropertyName distRoot -NotePropertyValue 'dist' -Force
     }
 
     $hasManifestPath = $cfg.PSObject.Properties.Name -contains 'manifestPath'
@@ -54,10 +103,12 @@ function Load-Config ([string] $CfgPath) {
     }
 
     if (-not ($cfg.PSObject.Properties.Name -contains 'excludeFolders')) {
-        $cfg | Add-Member -NotePropertyName excludeFolders -NotePropertyValue @() -Force
+        $cfg
+        | Add-Member -NotePropertyName excludeFolders -NotePropertyValue @() -Force
     }
     if (-not ($cfg.PSObject.Properties.Name -contains 'excludeGlobs')) {
-        $cfg | Add-Member -NotePropertyName excludeGlobs -NotePropertyValue @() -Force
+        $cfg
+        | Add-Member -NotePropertyName excludeGlobs -NotePropertyValue @() -Force
     }
     if (-not ($cfg.PSObject.Properties.Name -contains 'excludeNamePatterns')) {
         $cfg
@@ -72,7 +123,8 @@ function Load-Config ([string] $CfgPath) {
 
     $hasManifestRelPath = $cfg.PSObject.Properties.Name -contains 'manifestRelPath'
     if (-not $hasManifestRelPath -or -not $cfg.manifestRelPath) {
-        $cfg | Add-Member -NotePropertyName manifestRelPath -NotePropertyValue 'manifest.json' -Force
+        $cfg
+        | Add-Member -NotePropertyName manifestRelPath -NotePropertyValue 'manifest.json' -Force
     }
 
     return $cfg
@@ -96,7 +148,13 @@ function Copy-Allowlist (
     $Cfg,
     [switch] $StrictMode
 ) {
+    $excludeFolders = $Cfg.excludeFolders
+    $excludeGlobs = $Cfg.excludeGlobs
+    $excludeNamePatterns = $Cfg.excludeNamePatterns
     foreach ($item in $Cfg.allowlist) {
+        if (Test-IsExcluded -RelPath $item -ExcludeFolders $excludeFolders -ExcludeGlobs $excludeGlobs -ExcludeNamePatterns $excludeNamePatterns) {
+            continue
+        }
         $srcPath = Join-Path $SrcRootAbs $item
         if (-not (Test-Path $srcPath)) {
             $msg = "Missing allowlisted item: $item"
@@ -109,12 +167,29 @@ function Copy-Allowlist (
             }
         }
         $destPath = Join-Path $StageDir $item
-        Ensure-Dir (Split-Path $destPath -Parent)
-        Copy-Item -Path $srcPath -Destination $destPath -Recurse -Force
+        Initialize-Directory (Split-Path $destPath -Parent)
+        if (Test-Path $srcPath -PathType Container) {
+            # Recursively copy, but filter exclusions
+            $allFiles = Get-ChildItem -Path $srcPath -Recurse -File | ForEach-Object {
+                $rel = Join-Path $item ($_.FullName.Substring($srcPath.Length).TrimStart('\', '/'))
+                if (-not (Test-IsExcluded -RelPath $rel -ExcludeFolders $excludeFolders -ExcludeGlobs $excludeGlobs -ExcludeNamePatterns $excludeNamePatterns)) {
+                    $_
+                }
+            }
+            foreach ($f in $allFiles) {
+                $rel = Join-Path $item ($f.FullName.Substring($srcPath.Length).TrimStart('\', '/'))
+                $dst = Join-Path $StageDir $rel
+                Initialize-Directory (Split-Path $dst -Parent)
+                Copy-Item -Path $f.FullName -Destination $dst -Force
+            }
+        }
+        else {
+            Copy-Item -Path $srcPath -Destination $destPath -Force
+        }
     }
 }
 
-function Remove-ExcludedFolder ( [string] $StageDir, $Cfg ) {
+function Remove-ExcludedFolders ( [string] $StageDir, $Cfg ) {
     foreach ($folder in $Cfg.excludeFolders) {
         $p = Join-Path $StageDir $folder
         if (Test-Path $p) {
@@ -124,7 +199,7 @@ function Remove-ExcludedFolder ( [string] $StageDir, $Cfg ) {
     }
 }
 
-function Remove-ExcludedByNamePattern (
+function Remove-ExcludedByNamePatterns (
     [string] $StageDir,
     [string[]] $Patterns
 ) {
@@ -142,16 +217,16 @@ function Remove-ExcludedByNamePattern (
     }
 }
 
-function Remove-ExcludedByGlob ( [string] $StageDir, [string[]] $Globs ) {
+function Remove-ExcludedByGlobs ( [string] $StageDir, [string[]] $Globs ) {
     if (-not $Globs -or $Globs.Count -eq 0) {
         return
     }
     foreach ($glob in $Globs) {
-        $matches = Get-ChildItem -Path $StageDir -Recurse -Force -File
+        $matchedFiles = Get-ChildItem -Path $StageDir -Recurse -Force -File
         | Where-Object {
             $_.FullName -like (Join-Path $StageDir $glob)
         }
-        foreach ($m in $matches) {
+        foreach ($m in $matchedFiles) {
             Write-Host "Removing excluded file (glob): $($m.FullName)"
             Remove-Item $m.FullName -Force
         }
@@ -222,7 +297,7 @@ function Resolve-AppName (
     throw "AppName is required. Pass -AppName or set 'appName' in package-config.json (or ensure manifest.json has a non-empty name)."
 }
 
-function Stage-And-Zip (
+function Invoke-StagingAndZip (
     [string] $RepoRoot,
     [string] $SrcRootAbs,
     [string] $DistRootAbs,
@@ -230,25 +305,21 @@ function Stage-And-Zip (
     $Cfg,
     [switch] $StrictMode,
     [switch] $DevFlag,
-    [string] $VersionOverride,
-    [switch] $SkipZip
+    [string] $VersionOverride
 ) {
     $stageDir = Join-Path $DistRootAbs $StageName
-    $zipPath = Join-Path $DistRootAbs("{0}.zip" -f $StageName)
-
     Write-Host ""
     Write-Host "Staging to: $stageDir" -ForegroundColor Cyan
-    Remove-IfExist $stageDir
-    Ensure-Dir $stageDir
+    Remove-IfExists $stageDir
+    Initialize-Directory $stageDir
 
     Write-Host "Copy allowlist from: $SrcRootAbs"
     Copy-Allowlist -SrcRootAbs $SrcRootAbs -StageDir $stageDir -Cfg $Cfg -StrictMode:$StrictMode
 
-    Remove-ExcludedFolder -StageDir $stageDir -Cfg $Cfg
-    Remove-ExcludedByGlob -StageDir $stageDir -Globs $Cfg.excludeGlobs
-    Remove-ExcludedByNamePattern -StageDir $stageDir -Patterns $Cfg.excludeNamePatterns
+    Remove-ExcludedFolders $stageDir $Cfg
+    Remove-ExcludedByGlobs $stageDir $Cfg.excludeGlobs
+    Remove-ExcludedByNamePatterns $stageDir $Cfg.excludeNamePatterns
 
-    # Set dev marker in staged manifest only
     $manifestRel = if ($Cfg.manifestRelPath) {
         $Cfg.manifestRelPath
     }
@@ -263,39 +334,21 @@ function Stage-And-Zip (
 
     Set-ManifestDevVersionName -StagedManifestAbsPath $stagedManifest -Version $VersionOverride -IsDev:$DevFlag
 
-    Write-Host "Load unpacked from:" -ForegroundColor Green
-    Write-Host "  $stageDir"
+    Write-Host ""
+    if (-not ($NoZip)) {
+        $zipPath = Join-Path $DistRootAbs ("$StageName.zip")
+        Write-Host "Creating zip: $zipPath" -ForegroundColor Cyan
+        Remove-IfExists $zipPath
 
-    if ($SkipZip) {
+        # Zip staged contents (flat zip root)
+        Compress-Archive -Path (Join-Path $stageDir '*') -DestinationPath $zipPath -Force
         Write-Host ""
-        Write-Host "ZIP skipped due to -NoZip." -ForegroundColor Yellow
-        return
+        Write-Host "ZIP ready:" -ForegroundColor Green
+        Write-Host "  $zipPath"
     }
-
-    Write-Host ""
-    Write-Host "Creating zip: $zipPath" -ForegroundColor Cyan
-    Remove-IfExist $zipPath
-
-    # Zip staged contents (flat zip root)
-    Compress-Archive -Path (
-        Join-Path $stageDir '*'
-    ) -DestinationPath $zipPath -Force
-
-    Write-Host ""
-    Write-Host "ZIP ready:" -ForegroundColor Green
-    Write-Host "  $zipPath"
-}
-
-# ---------------- MAIN ----------------
-
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-Set-Location $repoRoot
-
-$cfgPathResolved = if ($ConfigPath) {
-    $ConfigPath
-}
-else {
-    (Join-Path $PSScriptRoot 'package-config.json')
+    else {
+        Write-Host "Nozip for testing" -ForegroundColor Green
+    }
 }
 $cfgAbs = if ([System.IO.Path]::IsPathRooted($cfgPathResolved)) {
     $cfgPathResolved
@@ -303,11 +356,11 @@ $cfgAbs = if ([System.IO.Path]::IsPathRooted($cfgPathResolved)) {
 else {
     (Join-Path $repoRoot $cfgPathResolved)
 }
-$cfg = Load-Config -CfgPath $cfgAbs
+$cfg = Import-Configuration -CfgPath $cfgAbs
 
 $srcRootAbs = Join-Path $repoRoot $cfg.srcRoot
 $distRootAbs = Join-Path $repoRoot $cfg.distRoot
-Ensure-Dir $distRootAbs
+Initialize-Directory $distRootAbs
 
 $manifestAbs = if ([System.IO.Path]::IsPathRooted($cfg.manifestPath)) {
     $cfg.manifestPath
@@ -318,6 +371,7 @@ else {
 $AppName = Resolve-AppName -AppNameParam $AppName -Cfg $cfg -ManifestAbsPath $manifestAbs
 if (-not $Version) {
     $Version = Read-ManifestVersion -ManifestAbsPath $manifestAbs
+
 }
 
 $defaultName = "{0}-{1}" -f $AppName, $Version
@@ -332,7 +386,7 @@ else {
 }
 $devFlag = [bool] $DevBuild
 
-Stage-And-Zip -RepoRoot $repoRoot -SrcRootAbs $srcRootAbs -DistRootAbs $distRootAbs -StageName $stageName -Cfg $cfg -StrictMode:$Strict -DevFlag:$devFlag -VersionOverride $Version -SkipZip:$NoZip
+Invoke-StagingAndZip -RepoRoot $repoRoot -SrcRootAbs $srcRootAbs -DistRootAbs $distRootAbs -StageName $stageName -Cfg $cfg -StrictMode:$Strict -DevFlag:$devFlag -VersionOverride $Version
 
 if ($BuildDevVariant) {
     $devName = if ($stageName.ToLower().EndsWith('-dev')) {
@@ -341,5 +395,7 @@ if ($BuildDevVariant) {
     else {
         "{0}-dev" -f $stageName
     }
-    Stage-And-Zip -RepoRoot $repoRoot -SrcRootAbs $srcRootAbs -DistRootAbs $distRootAbs -StageName $devName -Cfg $cfg -StrictMode:$Strict -DevFlag:$true -VersionOverride $Version -SkipZip:$NoZip
+    Invoke-StagingAndZip -RepoRoot $repoRoot -SrcRootAbs $srcRootAbs -DistRootAbs $distRootAbs -StageName $devName -Cfg $cfg -StrictMode:$Strict -DevFlag:$true -VersionOverride $Version
 }
+
+

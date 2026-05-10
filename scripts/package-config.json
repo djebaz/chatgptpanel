@@ -1,28 +1,20 @@
 {
-  "srcRoot": ".",
+  "srcRoot": "src",
   "distRoot": "dist",
-  "manifestPath": "manifest.json",
+  "manifestPath": "src/manifest.json",
   "manifestRelPath": "manifest.json",
-  "appName": "MultiSiteFilters",
+  "appName": "ChatPTPanel",
   "allowlist": [
-    "rulesets/motherless-thumb-redirect.json",
-    "cache-telemetry.js",
     "manifest.json",
-    "background.js",
-    "websites-metadata.js",
-    "motherless-runtime.js",
-    "runtime-utils.js",
-    "site-adapters.js",
-    "ratio-runtime.js",
-    "filter-engine.js",
-    "content.js",
-    "popup.html",
-    "popup.js",
-    "cache-export.js",
-    "styles.css",
-    "icon48.png",
-    "icon128.png",
-    "icon19.png"
+    "background",
+    "popup",
+    "manager",
+    "offscreen",
+    "shared",
+    "content",
+    "detached",
+    "lib",
+    "assets"
   ],
   "excludeFolders": [
     "tests",
@@ -30,9 +22,27 @@
     "__tests__",
     "node_modules",
     "scripts",
+    "devdocs",
+    "devlogs",
+    "playwright-report",
+    "dist",
     ".github",
-    ".vscode"
+    ".vscode",
+    "src/tests",
+    "src/test",
+    "src/__tests__"
   ],
-  "excludeGlobs": ["**/*.md", "**/*.txt", "**/*.map", "**/*.log"],
-  "excludeNamePatterns": ["\\.map$", "\\.bak$", "\\.log$", "\\.tmp$"]
+  "excludeGlobs": [
+    "**/*.md",
+    "**/*.txt",
+    "**/*.map",
+    "**/*.log",
+    "lib/webcodecs/mediabunny.mjs"
+  ],
+  "excludeNamePatterns": [
+    "\\.map$",
+    "\\.bak$",
+    "\\.log$",
+    "\\.tmp$"
+  ]
 }
