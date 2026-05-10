@@ -197,8 +197,7 @@ function Update-UnreleasedReleaseAudit {
     $baseRefPath = if ($BaseRef) { "$BaseRef`:$Path" } else { "origin/$baseBranch`:$Path" }
     $baseUnreleasedText = Invoke-Git -Args @('show', $baseRefPath)
     $baseFooter = Get-ReleaseAuditFooter -Text $baseUnreleasedText
-    Write-Status "ℹ️  Debug [Local]: Current Scope length=$($footer.ScopeLine.Length), Base Scope length=$($baseFooter.ScopeLine.Length)"
-    if ($baseFooter -and $footer.ScopeLine.Length -ge $baseFooter.ScopeLine.Length) {
+    if ($baseFooter -and $footer.ScopeLine.Length -gt $baseFooter.ScopeLine.Length) {
       $scopeAlreadyGrown = $true
       Write-Status "Scope already grown ($($footer.ScopeLine.Length) > $($baseFooter.ScopeLine.Length)). Skipping auto-append."
     }
@@ -344,11 +343,11 @@ function Invoke-AutoRemediation {
     ($errorsJoined -match "#$PrNumber\b")
 
   $scopeMismatchError = $errorsJoined -and
-    ($errorsJoined -match 'Scope|summary|line did not grow')
+    ($errorsJoined -match 'Scope:.*summary')
 
   if ($missingAuditPrError -or $scopeMismatchError) {
-    Write-Status "Audit remediation detected (MissingPR=$missingAuditPrError, ScopeMismatch=$scopeMismatchError). Waiting 45s for manual fix..."
-    Start-Sleep -Seconds 45
+    Write-Status "Audit remediation detected (MissingPR=$missingAuditPrError, ScopeMismatch=$scopeMismatchError). Waiting 10s for manual fix..."
+    Start-Sleep -Seconds 10
     
     # Re-fetch the PR state to see if it was fixed manually during the wait
     $pr = Invoke-GhJson -Args @('api', "repos/$RepoName/pulls/$PrNumber")
