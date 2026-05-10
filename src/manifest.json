@@ -1,8 +1,6 @@
 {
-"update_url": "https://clients2.google.com/service/update2/crx",
-
   "manifest_version": 3,
-  "name": "OpenAI ChatGPT Mini",
+  "name": "ChatPTPanel",
   "version": "1.0",
   "action": {
     "default_icon": {

@@ -15,7 +15,6 @@
     "eslint": "^10.3.0",
     "jest": "^30.4.2",
     "jest-environment-jsdom": "^30.4.1",
-    "playwright": "^1.59.1",
     "prettier": "^3.3.3"
   },
   "scripts": {
@@ -26,7 +25,7 @@
     "codegen:e2e": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-e2e-codegen.ps1",
     "codegen:e2e:mock": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/run-e2e-codegen-mock.ps1",
     "release": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/release.ps1",
-    "lint": "eslint . --fix",
+    "lint": "eslint .",
     "format": "prettier --check *.{js,json} src/**/*.{js,json,css,html} tests/**/*.js",
     "format:write": "prettier --write *.{js,json} src/**/*.{js,json,css,html} tests/**/*.js",
     "format:all": "prettier --write *.{js,json} src/**/*.{js,json,css,html} .github/workflows/*.{yml,yaml} devdocs/**/*.md tests/**/*.js",
@@ -34,5 +33,6 @@
     "playwright:install:chromium": "playwright install chromium",
     "test:unit": "jest --coverage=false",
     "test:unit:coverage": "jest --coverage"
-  }
+  },
+  "jest": {}
 }
