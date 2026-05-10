@@ -1,0 +1,109 @@
+{
+  "$schema": "./release-signal-config.schema.json",
+  "version": "2.0",
+  "project": "chatgptpanel",
+  "lowSignal": {
+    "exactFiles": [
+      ".gitattributes",
+      ".gitignore",
+      ".prettierignore",
+      ".prettierrc",
+      "eslint.config.mjs",
+      "package.json",
+      "AGENTS.md",
+      "CLAUDE.md",
+      "README.md"
+    ],
+    "pathPrefixes": [
+      "scripts/",
+      "devdocs/",
+      ".github/"
+    ]
+  },
+  "nonTrivialLines": {
+    "lineCommentPrefixes": ["//", "#"],
+    "blockCommentPrefixes": ["/*", "*"],
+    "punctuationOnlyChars": "{}[](),;"
+  },
+  "highSignal": [
+    {
+      "file": "src/manifest.json",
+      "reason": "Manifest change affects extension capabilities",
+      "userFacing": true
+    },
+    {
+      "file": "src/popup.html",
+      "reason": "Popup HTML structure change affects UI",
+      "userFacing": true
+    },
+    {
+      "pathPrefixes": ["src/icons/"],
+      "reason": "Icon changes affect extension branding",
+      "userFacing": true
+    },
+    {
+      "file": "src/_metadata/verified_contents.json",
+      "reason": "Verified contents update",
+      "userFacing": false
+    }
+  ],
+  "conditionalFiles": [
+    {
+      "file": "src/background.js",
+      "type": "token_any_vs_token_all",
+      "userFacingTokens": ["chrome.", "url:", "width:", "height:"],
+      "helperOnlyTokens": ["console.log", "console.debug"],
+      "jsActionNames": [],
+      "userFacingReason": "Background script behavior change",
+      "helperOnlyReason": "Cleanup or logging in background script",
+      "ambiguousReason": "Ambiguous background script change",
+      "userFacing": true
+    },
+    {
+      "file": "src/popup.js",
+      "type": "token_any_vs_token_all",
+      "userFacingTokens": ["fetch", "gapi.", "document.", "sendMessage"],
+      "helperOnlyTokens": ["console.log", "console.error"],
+      "jsActionNames": [],
+      "userFacingReason": "Popup logic change",
+      "helperOnlyReason": "Cleanup or logging in popup script",
+      "ambiguousReason": "Ambiguous popup script change",
+      "userFacing": true
+    },
+    {
+      "file": "src/style.css",
+      "type": "css_visible_vs_cleanup",
+      "userFacingSelectors": ["body", "#chat-container", "#chat-form", "#chat-input", "button"],
+      "userFacingProperties": ["font-", "width", "height", "border", "padding", "margin", "display", "flex", "background-color", "cursor"],
+      "cleanupPropertiesUsingCssVariable": [],
+      "userFacingReason": "Popup styling change",
+      "cleanupOnlyReason": "CSS variable cleanup",
+      "ambiguousReason": "Ambiguous styling change",
+      "userFacing": true
+    }
+  ],
+  "labels": {
+    "releaseNeeded": "release:needed",
+    "releaseNone": "release:none"
+  },
+  "docsPolicy": {
+    "unreleasedFile": "devdocs/releases/unreleased.md",
+    "readmeFile": "README.md",
+    "changelogFile": "devdocs/releases/unreleased.md",
+    "agentsFile": "AGENTS.md",
+    "workflowPathPrefixes": [".github/workflows/"]
+  },
+  "coverageAudit": {
+    "requiredReleaseSignalFiles": [
+      "src/manifest.json",
+      "src/popup.html",
+      "src/background.js",
+      "src/popup.js",
+      "src/style.css",
+      "src/_metadata/verified_contents.json"
+    ],
+    "requiredReleaseSignalPathPrefixes": [
+      "src/icons/"
+    ]
+  }
+}

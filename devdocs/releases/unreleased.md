@@ -8,7 +8,7 @@
 
 ### Changed
 
--
+- Initialized `scripts/release-signal-config.json` to enable data-driven release classification.
 
 ### Fixed
 
@@ -17,4 +17,4 @@
 ## Release audit
 
 - PRs: #xx
-- Scope: placeholder; feat;
+- Scope: placeholder; feat; tooling;
