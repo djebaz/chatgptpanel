@@ -349,49 +349,65 @@ jobs:
             const autoFixApplied = `${{ steps.autofix.outputs.release_audit_changed }}` === 'true';
             const followupChecksExpected = `${{ steps.refs.outputs.can_trigger_followup_checks }}` === 'true';
             const errorCount = `${{ steps.release_signal.outputs.error_count }}` || 'unknown';
+            const recommendedLabel = releaseLikely === 'true' ? 'release:needed' : 'release:none';
+            const failed = errorCount !== '0';
             const warningItems = warningsJoined ? warningsJoined.split(' || ').filter(Boolean) : [];
             const errorItems = errorsJoined ? errorsJoined.split(' || ').filter(Boolean) : [];
             const marker = '<!-- release-signal-comment -->';
+            const actionsMetadataMarker = '<!-- release-signal-actions: ';
             const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+
+            const alertType = failed ? '[!CAUTION]' : '[!TIP]';
+            const statusEmoji = failed ? '❌' : '✔️';
+            const statusText = failed ? 'FAIL' : 'PASS';
+            const releaseEmoji = releaseLikely === 'true' ? '🔥' : '❄️';
+            const docsEmoji = docsRequired === 'true' ? '📚' : '✅';
+            const labelEmoji = recommendedLabel === 'release:needed' ? '🚀' : '🏷️';
 
             const lines = [
               marker,
-              '## Release Signal',
-              '',
-              `- Final status: ${errorCount === '0' ? '✅ Passed' : '❌ Failed'}`,
-              `- Release likely: \`${releaseLikely}\``,
-              `- Docs required: \`${docsRequired}\``,
-              `- Reason: ${releaseReason}`,
+              `> ${alertType}`,
+              `> ### ${statusEmoji} ${statusText}`,
+              '>',
+              `> - **Release likely**: \`${releaseLikely || 'unknown'}\` ${releaseEmoji}`,
+              `> - **Docs required**: \`${docsRequired || 'unknown'}\` ${docsEmoji}`,
+              `> - **Recommended label**: \`${recommendedLabel}\` ${labelEmoji}`,
+              `> - **Reason**: ${releaseReason || '(missing)'}`,
             ];
 
-            if (autoFixApplied) {
-              lines.push(
-                '',
-                '### Auto-fix',
-                '- Updated `devdocs/releases/unreleased.md` Release audit metadata and pushed the fix to this PR branch.'
-              );
-              if (followupChecksExpected) {
-                lines.push('- The push used `RELEASE_SIGNAL_PUSH_TOKEN`, so normal PR checks should run again on the pushed commit.');
-              } else {
-                lines.push('- The push used the workflow `GITHUB_TOKEN`; GitHub will not start a second workflow run from that bot commit. This workflow re-ran release-signal validation inside the same job instead.');
-              }
-            }
-
             if (errorItems.length) {
-              lines.push('', '### Errors');
+              lines.push('>', '> #### Errors');
               for (const item of errorItems) {
-                lines.push(`- ${item}`);
+                lines.push(`> - ${item}`);
               }
             }
 
             if (warningItems.length) {
-              lines.push('', '### Warnings');
+              lines.push('>', '> #### Warnings');
               for (const item of warningItems.slice(0, 3)) {
-                lines.push(`- ${item}`);
+                lines.push(`> - ${item}`);
               }
             }
 
-            lines.push('', `Workflow run: ${runUrl}`);
+            const actions = [];
+            if (autoFixApplied) {
+              actions.push('Synced `devdocs/releases/unreleased.md` Release audit metadata 📜');
+              if (followupChecksExpected) {
+                actions.push('Auto-fix push used `RELEASE_SIGNAL_PUSH_TOKEN`; follow-up checks should rerun 🔁');
+              } else {
+                actions.push('Auto-fix push used `GITHUB_TOKEN`; GitHub suppresses recursive workflow runs, so release-signal was re-checked inside this job 🔁');
+              }
+            }
+
+            actions.push(`Workflow run: ${runUrl}`);
+
+            if (actions.length) {
+              lines.push('>', '> #### ☑️ Auto-Applied Actions');
+              for (const action of actions) {
+                lines.push(`> - ${action}`);
+              }
+              lines.push(`${actionsMetadataMarker}${JSON.stringify(actions)} -->`);
+            }
 
             const body = lines.join('\n');
             const { data: comments } = await github.rest.issues.listComments({
