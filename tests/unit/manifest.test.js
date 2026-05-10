@@ -17,15 +17,15 @@ describe('Manifest Validation', () => {
   it('should have correctly configured background service worker', () => {
     assert.ok(manifest.background, 'Manifest must have a background section');
     assert.ok(manifest.background.service_worker, 'Background must have a service_worker');
-    
+
     const workerPath = path.resolve('src', manifest.background.service_worker);
     assert.ok(fs.existsSync(workerPath), `Service worker file not found: ${workerPath}`);
   });
 
   it('should not have excessive permissions', () => {
-    const allowedPermissions = ['storage', 'sidePanel', 'declarativeNetRequest', 'declarativeNetRequestFeedback', 'tabs']; 
+    const allowedPermissions = ['storage', 'sidePanel', 'declarativeNetRequest', 'declarativeNetRequestFeedback', 'tabs'];
     const permissions = manifest.permissions || [];
-    
+
     permissions.forEach(perm => {
       assert.ok(allowedPermissions.includes(perm), `Unexpected permission found: ${perm}`);
     });
@@ -34,7 +34,7 @@ describe('Manifest Validation', () => {
   it('should have valid icons that exist on disk', () => {
     const icons = manifest.icons || {};
     const actionIcons = (manifest.action && manifest.action.default_icon) || {};
-    
+
     const allIcons = { ...icons, ...actionIcons };
     assert.ok(Object.keys(allIcons).length > 0, 'Manifest should define at least one icon');
 

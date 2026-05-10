@@ -13,15 +13,8 @@
   "background": {
     "service_worker": "background.js"
   },
-  "permissions": [
-    "sidePanel",
-    "declarativeNetRequest",
-    "declarativeNetRequestFeedback",
-    "tabs"
-  ],
-  "host_permissions": [
-    "*://*.chatgpt.com/*"
-  ],
+  "permissions": ["sidePanel", "declarativeNetRequest", "declarativeNetRequestFeedback", "tabs"],
+  "host_permissions": ["*://*.chatgpt.com/*"],
   "declarative_net_request": {
     "rule_resources": [
       {
