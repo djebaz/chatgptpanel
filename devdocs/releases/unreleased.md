@@ -11,7 +11,7 @@
 ### Changed
 
 - Migrated unit tests from Jest to native Node.js test runner.
-- Updated devDependencies: Node v24, Playwright v1.59, ESLint v10. (Removed Jest).
+- Updated devDependencies: Node v24, Playwright v1.59, ESLint v10. (Removed Jest and Babel).
 - Normalized dependency graph and regenerated lockfile.
 - Initialized `scripts/release-signal-config.json` to enable data-driven release classification.
 
