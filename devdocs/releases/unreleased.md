@@ -23,4 +23,4 @@
 ## Release audit
 
 - PRs: #1, #2, #3, #4
-- Scope: tooling; artifact-optimization; README; project simplification to browser-wrapper approach;
+- Scope: tooling; artifact-optimization; README
