@@ -331,9 +331,6 @@ function Invoke-AutoRemediation {
   }
 
   $errorsJoined = if ($Outputs.ContainsKey('errors_joined')) { $Outputs['errors_joined'] } else { '' }
-  if ($errorsJoined) {
-      Write-Status "[DEBUG] Errors detected: $errorsJoined"
-  }
   
   $missingAuditPrError = $errorsJoined -and
     $errorsJoined.Contains('must list the current PR number') -and

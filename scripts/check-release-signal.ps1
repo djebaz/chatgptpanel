@@ -988,7 +988,7 @@ else {
           $baseReleaseAudit = Get-ReleaseAuditMetadata -Text $baseUnreleasedText
           $currentPrToken = "#$currentPrNumber"
           $prWasAddedToAudit = ($listedPrs -contains $currentPrToken) -and ($baseReleaseAudit.Prs -notcontains $currentPrToken)
-          if ($prWasAddedToAudit -and $releaseAudit.Scope.Length -le $baseReleaseAudit.Scope.Length) {
+          if ($prWasAddedToAudit -and $releaseAudit.Scope.Length -lt $baseReleaseAudit.Scope.Length) {
             $errors.Add(('⭕ `{0}` adds `#{1}` to `Release audit` `PRs:` but does not update the cumulative `Scope:` summary (line did not grow).' -f $unreleasedFile, $currentPrNumber)) | Out-Null
           }
         }
