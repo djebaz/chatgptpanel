@@ -1,4 +1,4 @@
-name: Release Signal Autoofix
+name: Release Signal Autofix
 
 on:
   pull_request:
