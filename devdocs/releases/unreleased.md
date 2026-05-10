@@ -23,4 +23,4 @@
 ## Release audit
 
 - PRs: #1, #2, #3, #4
-- Scope: tooling; artifact-optimization; README, docsync and formatting; doc sync tooling; unit tests v1 3258527929282857917
+- Scope: tooling; artifact-optimization; README, docsync and formatting; Removed obsolete API client logic and complex unit tests in favor of a clean, minimal wrapper;
