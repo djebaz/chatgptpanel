@@ -1,18 +1,18 @@
 name: Release Signal
 
 on:
-#  pull_request:
-#    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+  #  pull_request:
+  #    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
   workflow_dispatch:
     inputs:
       base_ref:
-        description: 'Base ref (SHA or branch) for release signal evaluation'
+        description: "Base ref (SHA or branch) for release signal evaluation"
         required: true
-        default: 'main'
+        default: "main"
       head_ref:
-        description: 'Head ref (SHA or branch) for release signal evaluation'
+        description: "Head ref (SHA or branch) for release signal evaluation"
         required: true
-        default: 'HEAD'
+        default: "HEAD"
 
 permissions:
   contents: read
@@ -44,10 +44,29 @@ jobs:
           echo "### 🚀 Release Signal Summary" >> $GITHUB_STEP_SUMMARY
           echo "| Metric | Status |" >> $GITHUB_STEP_SUMMARY
           echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
-          echo "| Release likely | \`${{ steps.release_signal.outputs.release_likely }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Docs required | \`${{ steps.release_signal.outputs.docs_required }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Error count | \`${{ steps.release_signal.outputs.error_count }}\` |" >> $GITHUB_STEP_SUMMARY
 
+          RELEASE_LIKELY="${{ steps.release_signal.outputs.release_likely }}"
+          if [ "$RELEASE_LIKELY" == "true" ]; then
+            echo "| Release likely | ✅ \`true\` |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Release likely | ⚪ \`false\` |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          DOCS_REQUIRED="${{ steps.release_signal.outputs.docs_required }}"
+          if [ "$DOCS_REQUIRED" == "true" ]; then
+            echo "| Docs required | ⚠️ \`true\` |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Docs required | ✅ \`false\` |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          ERROR_COUNT="${{ steps.release_signal.outputs.error_count }}"
+          if [ "$ERROR_COUNT" != "0" ] && [ -n "$ERROR_COUNT" ]; then
+            echo "| Error count | ❌ \`$ERROR_COUNT\` |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Error count | ✅ \`0\` |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
           echo "<details><summary>Expand detailed release signal log</summary>" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo '```text' >> $GITHUB_STEP_SUMMARY

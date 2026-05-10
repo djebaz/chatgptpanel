@@ -2,9 +2,7 @@
 
 ### Highlights
 
-
 ### Added
-
 
 ### Changed
 
@@ -12,9 +10,9 @@
 
 ### Fixed
 
--
+- minimize GitHub Actions artifact storage usage by transitioning logs to Job Summaries
 
 ## Release audit
 
-- PRs: #xx
-- Scope: placeholder; feat; tooling;
+- PRs: #1, #2
+- Scope: Optimize GitHub Actions Artifact; tooling;
