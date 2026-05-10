@@ -146,3 +146,5 @@ vite.config.ts.timestamp-*
 .tooling-migration-backup
 devdocs/tooling-refresh-pr-body.md
 tmp
+test-results
+playwright-report
