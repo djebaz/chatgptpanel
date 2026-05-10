@@ -21,6 +21,15 @@ export default [
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",
+      globals: {
+        chrome: "readonly",
+        window: "readonly",
+        document: "readonly",
+        console: "readonly",
+        setTimeout: "readonly",
+        clearTimeout: "readonly",
+        process: "readonly"
+      }
     },
     rules: {
       "no-const-assign": "error",
@@ -31,13 +40,13 @@ export default [
       "no-unsafe-finally": "error",
       "valid-typeof": "error",
 
-      "no-unused-vars": "off",
-      "no-empty": "off",
-      "no-undef": "off",
-      "no-redeclare": "off",
-      "no-useless-escape": "off",
+      "no-unused-vars": "warn",
+      "no-undef": "error",
+      "no-empty": "warn",
+      "no-redeclare": "error",
+      "no-useless-escape": "warn",
       "no-control-regex": "off",
-      "no-empty-pattern": "off",
+      "no-empty-pattern": "warn",
     },
   },
 ];
