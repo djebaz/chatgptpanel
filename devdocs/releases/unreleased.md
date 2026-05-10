@@ -23,5 +23,5 @@
 
 ## Release audit
 
-- PRs: #1, #2, #3, #4
-- Scope: tooling; artifact-optimization; README, docsync and formatting; doc sync tooling; feat: implement E2E tests with Playwright
+- PRs: #1, #2, #3, #4, #5
+- Scope: tooling; artifact-optimization; README, docsync and formatting; doc sync tooling; feat: implement E2E tests with Playwright; implement e2e tests playwright 2959311289169985160
