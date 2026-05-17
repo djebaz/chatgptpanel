@@ -15,4 +15,4 @@
 ## Release audit
 
 - PRs: #20
-- Scope: Version Bump 2.0.1
+- Scope: Version Bump 2.0.1; release 2 0 1
