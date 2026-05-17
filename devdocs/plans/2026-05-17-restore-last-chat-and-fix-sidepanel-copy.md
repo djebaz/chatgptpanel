@@ -13,7 +13,7 @@
 - [x] Replace isolated-world history patching with live URL watchers so ChatGPT SPA route changes persist reliably.
 - [x] Update side panel host logic to restore the iframe URL and perform extension-side fallback copy writes.
 - [x] Sync packaging allowlist and user-facing docs.
-- [ ] Validation: USER
+- [x] Validation: USER
 
 ## Decisions
 - Use one shared last ChatGPT URL across all launch modes.
@@ -24,5 +24,5 @@
 - None.
 
 ## Validation
-- [ ] Tests: USER
-- [ ] Smoke: USER
+- [x] Tests: USER
+- [x] Smoke: USER
