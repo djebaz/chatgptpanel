@@ -47,4 +47,13 @@ describe('Manifest Validation', () => {
   it('should define a default_popup', () => {
     assert.strictEqual(manifest.action.default_popup, 'popup.html', 'Should define popup.html as default_popup');
   });
+
+  it('should register the ChatGPT content script', () => {
+    const contentScripts = manifest.content_scripts || [];
+    const chatGptContentScript = contentScripts.find(script => script.js?.includes('chatgpt-content.js'));
+
+    assert.ok(chatGptContentScript, 'Manifest should register chatgpt-content.js');
+    assert.deepStrictEqual(chatGptContentScript.matches, ['https://chatgpt.com/*', '*://*.chatgpt.com/*']);
+    assert.strictEqual(chatGptContentScript.all_frames, true, 'Content script should run in all frames');
+  });
 });

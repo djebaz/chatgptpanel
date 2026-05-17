@@ -26,6 +26,11 @@ export default [
         window: "readonly",
         document: "readonly",
         console: "readonly",
+        navigator: "readonly",
+        URL: "readonly",
+        Element: "readonly",
+        MutationObserver: "readonly",
+        queueMicrotask: "readonly",
         setTimeout: "readonly",
         clearTimeout: "readonly",
         process: "readonly"

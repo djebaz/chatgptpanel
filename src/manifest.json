@@ -13,8 +13,16 @@
   "background": {
     "service_worker": "background.js"
   },
-  "permissions": ["sidePanel", "declarativeNetRequest", "declarativeNetRequestFeedback", "tabs"],
-  "host_permissions": ["*://*.chatgpt.com/*"],
+  "permissions": ["storage", "sidePanel", "declarativeNetRequest", "declarativeNetRequestFeedback", "tabs"],
+  "host_permissions": ["https://chatgpt.com/*", "*://*.chatgpt.com/*"],
+  "content_scripts": [
+    {
+      "matches": ["https://chatgpt.com/*", "*://*.chatgpt.com/*"],
+      "js": ["chatgpt-content.js"],
+      "all_frames": true,
+      "run_at": "document_idle"
+    }
+  ],
   "declarative_net_request": {
     "rule_resources": [
       {
