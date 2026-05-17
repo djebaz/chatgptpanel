@@ -7,10 +7,12 @@
   "allowlist": [
     "manifest.json",
     "background.js",
+    "chatgpt-content.js",
     "icons",
     "popup.html",
     "popup.js",
     "sidepanel.html",
+    "sidepanel.js",
     "rules.json"
   ],
   "excludeFolders": [
