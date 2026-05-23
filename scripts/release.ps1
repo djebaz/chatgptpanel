@@ -122,7 +122,7 @@ elseif ($LASTEXITCODE -ne 2) {
 }
 
 if ($remoteTagExists -and -not $Force) {
-    throw "Tag already exists on $Remote: $tagName. Use -Force only after verifying the existing release state."
+    throw "Tag already exists on ${Remote}: $tagName. Use -Force only after verifying the existing release state."
 }
 
 if (-not $SkipTests) {
