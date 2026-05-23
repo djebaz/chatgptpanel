@@ -8,7 +8,7 @@ This extension provides a dedicated action popup allowing you to open the offici
 - **PopUp**: A clean, distraction-free popup window.
 - **New Tab**: Standard full-tab experience.
 
-When you reopen ChatGPT from any of these launch modes, the extension restores the last visited ChatGPT URL so you can jump back into the same conversation. In side panel mode, the iframe host also enables a clipboard fallback to improve compatibility with ChatGPT's built-in copy buttons.
+When you reopen ChatGPT from any of these launch modes, the extension restores the last valid ChatGPT home or conversation URL so you can jump back into the same conversation. Internal ChatGPT helper URLs are ignored so they cannot become the saved reopen target. In side panel mode, the iframe host also enables a clipboard fallback to improve compatibility with ChatGPT's built-in copy buttons.
 
 ## Development
 
