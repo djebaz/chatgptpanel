@@ -10,7 +10,7 @@
 - [x] Add a strict restorable ChatGPT URL filter.
 - [x] Sync release-facing notes.
 - [x] Package `ChatPTPanel-99-dev` for user smoke testing.
-- [ ] Commit, push, and open a PR to `main`.
+- [x] Commit, push, and open a PR to `main`.
 
 ## Decisions and Design Changes
 - 2026-05-23 Store only canonical ChatGPT home or conversation URLs: `https://chatgpt.com/`, `https://chatgpt.com/c/<uuid>`, or `https://chatgpt.com/<uuid>`.
@@ -18,6 +18,7 @@
 - 2026-05-23 Repair corrupt stored reopen values to `https://chatgpt.com/`, while ignoring bad incoming frame URLs so they do not overwrite an existing valid chat URL.
 - 2026-05-23 Use the repo package script spelling `-DevBuild` with `-Version 99` for the smoke artifact.
 - 2026-05-23 Packaged `dist/ChatPTPanel-99-dev.zip` for user smoke testing.
+- 2026-05-23 Opened PR #22 to `main`.
 
 ## Open questions
 - None.
