@@ -107,7 +107,7 @@ if ($releaseNotes -notmatch "(?m)^## v$escapedVersion\s*$") {
 }
 
 $tagName = "v$Version"
-$existingTag = (& git tag --list $tagName).Trim()
+$existingTag = @(& git tag --list $tagName) -join ''
 if ($existingTag -and -not $Force) {
     throw "Tag already exists locally: $tagName. Use -Force only after verifying the existing release state."
 }
