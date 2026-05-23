@@ -107,7 +107,7 @@ if ($releaseNotes -notmatch "(?m)^## v$escapedVersion\s*$") {
 }
 
 $tagName = "v$Version"
-$existingTag = (& git tag --list $tagName).Trim()
+$existingTag = @(& git tag --list $tagName) -join ''
 if ($existingTag -and -not $Force) {
     throw "Tag already exists locally: $tagName. Use -Force only after verifying the existing release state."
 }
@@ -122,7 +122,7 @@ elseif ($LASTEXITCODE -ne 2) {
 }
 
 if ($remoteTagExists -and -not $Force) {
-    throw "Tag already exists on $Remote: $tagName. Use -Force only after verifying the existing release state."
+    throw "Tag already exists on ${Remote}: $tagName. Use -Force only after verifying the existing release state."
 }
 
 if (-not $SkipTests) {

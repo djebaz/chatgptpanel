@@ -8,7 +8,7 @@ This extension provides a dedicated action popup allowing you to open the offici
 - **PopUp**: A clean, distraction-free popup window.
 - **New Tab**: Standard full-tab experience.
 
-When you reopen ChatGPT from any of these launch modes, the extension restores the last visited ChatGPT URL so you can jump back into the same conversation. In side panel mode, the iframe host also enables a clipboard fallback to improve compatibility with ChatGPT's built-in copy buttons.
+When you reopen ChatGPT from any of these launch modes, the extension restores the last valid ChatGPT home or conversation URL so you can jump back into the same conversation. Internal ChatGPT helper URLs are ignored so they cannot become the saved reopen target. In side panel mode, the iframe host also enables a clipboard fallback to improve compatibility with ChatGPT's built-in copy buttons.
 
 ## Development
 
@@ -66,9 +66,9 @@ The release signal workflow validates release-audit metadata in `devdocs/release
 After the version-bump PR is merged to `main`, publish locally with:
 
 ```powershell
-npm run release -- -Version "2.0.1"
+npm run release -- -Version "2.0.2"
 ```
 
-The release script validates the current branch and version surfaces, packages the extension, creates/pushes the `v2.0.1` tag, publishes the GitHub release, uploads `dist/ChatPTPanel-2.0.1.zip`, and verifies the uploaded asset.
+The release script validates the current branch and version surfaces, packages the extension, creates/pushes the `v2.0.2` tag, publishes the GitHub release, uploads `dist/ChatPTPanel-2.0.2.zip`, and verifies the uploaded asset.
 
 A manual GitHub Actions workflow, **Publish Release**, is also available from the Actions tab. It accepts a version and release ref, packages the extension on GitHub-hosted runners, creates the tag if needed, publishes the GitHub release, uploads the zip, and writes a release summary.
